@@ -8,3 +8,6 @@ Polarization Denoising and Demosaicking:
 
 Review of polarimetric image denoising:
     -https://researching.cn/articles/OJ730f9435f4156d82 
+
+An Underwater Image Restoration Method With Polarization Imaging Optimization Model for Poor Visible Conditions
+    -https://ieeexplore.ieee.org/document/10781421
