@@ -11,3 +11,16 @@ Review of polarimetric image denoising:
 
 An Underwater Image Restoration Method With Polarization Imaging Optimization Model for Poor Visible Conditions
     -https://ieeexplore.ieee.org/document/10781421
+
+
+First step in pipeline. All data will need to be converted
+to this format
+
+    {
+        "raw":   np.ndarray,  # (4, H, W) in order [I0, I45, I90, I135]
+        "label": None,        # placeholder for azimuth labels if you add them later
+        "source": "mock",
+        "meta":  {...}
+    }
+
+This was done so any data when converted to this format should be able to run throught the preprocessing pipeline wihtout issue.
