@@ -108,7 +108,7 @@ def intensity_guilded_residual_interpolation(denoised_samples):
 
         raw_interpolated = np.stack([I0, I45, I90, I135], axis=0).astype(np.float32)
         new_sample = dict(sample)
-        new_sample["mosaic"] = raw_interpolated
+        new_sample["raw"] = raw_interpolated #Saving to new raw field
         sample_images.append(new_sample)
 
     # Placeholder for future implementation
