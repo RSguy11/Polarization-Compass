@@ -5,6 +5,34 @@ from scipy.io import loadmat
 from PIL import Image
 from typing import List, Dict, Union, Literal
 
+from tqdm import tqdm
+
+def add_mosaic_to_samples(samples: List[Dict]) -> List[Dict]:
+    new_samples: List[Dict] = []
+
+    for sample in tqdm(samples, desc="Adding mosaic to samples"):
+        raw = sample["raw"]  # (4, H, W)
+        if raw.ndim != 3 or raw.shape[0] != 4:
+            raise ValueError(f"Expected raw shape (4, H, W), got {raw.shape}")
+
+        I0, I45, I90, I135 = raw
+        H, W = I0.shape
+
+        if H % 2 != 0 or W % 2 != 0:
+            raise ValueError(f"Mosaic requires even H, W, got {(H, W)}")
+
+        mosaic = np.zeros((H, W), dtype=np.float32)
+
+        mosaic[0::2, 0::2] = I0[0::2, 0::2]     # 0°
+        mosaic[0::2, 1::2] = I45[0::2, 1::2]   # 45°
+        mosaic[1::2, 0::2] = I90[1::2, 0::2]   # 90°
+        mosaic[1::2, 1::2] = I135[1::2, 1::2]  # 135°
+
+        new_sample = dict(sample)   # shallow copy to avoid mutating input
+        new_sample["mosaic"] = mosaic
+        new_samples.append(new_sample)
+
+    return new_samples
 
 def _stack_polar_channels(
     I0: np.ndarray,
@@ -115,7 +143,6 @@ def load_mat_file(noise_level="Low", file_path="Mock_data/mosaic_test_preprocess
             file_path=str(data_path),
             noise_level=noise_level,
         )
-
         scenes.extend(samples)
 
     return scenes
