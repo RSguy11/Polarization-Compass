@@ -4,6 +4,7 @@ import pandas as pd
 from scipy.io import loadmat
 from PIL import Image
 from typing import List, Dict, Union, Literal
+from Preprocessing.visualizations.stage2_visualizations import visualize_and_save_stage2
 from stage2.stage2_pipe import polarimetric_parameters_from_stokes
 from visualizations.stage1_visualizations import visualize_and_save_stage1
 from stage1.stage1_pipe import pseduo_four_channel_desnoising, intensity_guilded_residual_interpolation
@@ -41,6 +42,15 @@ def main():
     stage2_out = polarimetric_parameters_from_stokes(channel_images)
     print("Stage 2 complete. Number of samples:", len(stage2_out))
 
+
+    visualize_and_save_stage2(
+        orig_samples=orginal_file, 
+        stage2_samples=stage2_out,
+        out_dir="stage2_results",
+        num_samples=4
+    )
+
+     ##### STAGE 3 ########
 
 if __name__ == "__main__":
     main()
