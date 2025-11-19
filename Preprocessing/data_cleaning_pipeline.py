@@ -4,6 +4,7 @@ import pandas as pd
 from scipy.io import loadmat
 from PIL import Image
 from typing import List, Dict, Union, Literal
+from Preprocessing.stage3.stage3_pipe import stage3_underwater_restoration
 from visualizations.stage2_visualizations import visualize_and_save_stage2
 from stage2.stage2_pipe import polarimetric_parameters_from_stokes
 from visualizations.stage1_visualizations import visualize_and_save_stage1
@@ -51,6 +52,14 @@ def main():
     )
 
      ##### STAGE 3 ########
+    
+    stage3_out = stage3_underwater_restoration(
+        stage2_out,
+        block_size=32,
+        gamma=0.85,
+    )
+    print("Stage 3 complete. Number of samples:", len(stage3_out))
+
 
 if __name__ == "__main__":
     main()
