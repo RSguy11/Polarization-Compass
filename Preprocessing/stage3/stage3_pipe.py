@@ -106,7 +106,7 @@ def stage3_underwater_restoration(
     for sample in samples:
         I0 = sample["raw"][0].astype(np.float32)          # 0° channel
         S0, _, _ = sample["stokes"].astype(np.float32)    # total intensity
-        rho = sample["dolp"].astype(np.float32)           # DoLP
+        rho = sample["DoLP"].astype(np.float32)           # DoLP
 
         # --- Step 1: ℜ(x) ---
         R = _compute_R(I0, S0, rho)

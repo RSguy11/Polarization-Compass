@@ -4,7 +4,8 @@ import pandas as pd
 from scipy.io import loadmat
 from PIL import Image
 from typing import List, Dict, Union, Literal
-from Preprocessing.stage3.stage3_pipe import stage3_underwater_restoration
+from stage3.stage3_pipe import stage3_underwater_restoration
+from visualizations.stage3_visualizations import visualize_and_save_stage3
 from visualizations.stage2_visualizations import visualize_and_save_stage2
 from stage2.stage2_pipe import polarimetric_parameters_from_stokes
 from visualizations.stage1_visualizations import visualize_and_save_stage1
@@ -26,9 +27,9 @@ def main():
     file_in_mosaic_form = add_mosaic_to_samples(orginal_file)
     print("Added mosaic to samples. First mosaic shape:", file_in_mosaic_form[0]["mosaic"].shape)
 
-    #pfcd_output = pseduo_four_channel_desnoising(file_in_mosaic_form)
+    pfcd_output = pseduo_four_channel_desnoising(file_in_mosaic_form)
     
-    channel_images = intensity_guilded_residual_interpolation(file_in_mosaic_form)
+    channel_images = intensity_guilded_residual_interpolation(pfcd_output)
     print("IGRI complete. Number of samples:", len(channel_images))
 
     visualize_and_save_stage1(
@@ -57,6 +58,13 @@ def main():
         stage2_out,
         block_size=32,
         gamma=0.85,
+    )
+
+    visualize_and_save_stage3(
+        stage2_samples=stage2_out,
+        stage3_samples=stage3_out,
+        out_dir="stage3_visuals",
+        num_samples=4,
     )
     print("Stage 3 complete. Number of samples:", len(stage3_out))
 
