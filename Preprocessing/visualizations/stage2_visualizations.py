@@ -29,8 +29,8 @@ def visualize_and_save_stage2(
         st2 = stage2_samples[idx]
 
         S0, S1, S2 = st2["stokes"]               # (3, H, W)
-        dolp = st2["dolp"]                       # (H, W)
-        aolp_deg = st2["aolp_deg"]               # (H, W)
+        dolp = st2["DoLP"]                       # (H, W)
+        aolp_deg = st2["AoLP_deg"]               # (H, W)
 
         # compute reference stokes from original raw for difference map
         I0, I45, I90, I135 = raw_orig

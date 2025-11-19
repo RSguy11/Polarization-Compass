@@ -4,7 +4,7 @@ import pandas as pd
 from scipy.io import loadmat
 from PIL import Image
 from typing import List, Dict, Union, Literal
-from Preprocessing.visualizations.stage2_visualizations import visualize_and_save_stage2
+from visualizations.stage2_visualizations import visualize_and_save_stage2
 from stage2.stage2_pipe import polarimetric_parameters_from_stokes
 from visualizations.stage1_visualizations import visualize_and_save_stage1
 from stage1.stage1_pipe import pseduo_four_channel_desnoising, intensity_guilded_residual_interpolation
@@ -25,9 +25,9 @@ def main():
     file_in_mosaic_form = add_mosaic_to_samples(orginal_file)
     print("Added mosaic to samples. First mosaic shape:", file_in_mosaic_form[0]["mosaic"].shape)
 
-    pfcd_output = pseduo_four_channel_desnoising(file_in_mosaic_form)
+    #pfcd_output = pseduo_four_channel_desnoising(file_in_mosaic_form)
     
-    channel_images = intensity_guilded_residual_interpolation(pfcd_output)
+    channel_images = intensity_guilded_residual_interpolation(file_in_mosaic_form)
     print("IGRI complete. Number of samples:", len(channel_images))
 
     visualize_and_save_stage1(

@@ -1,7 +1,7 @@
 from typing import List, Dict, Union, Literal
 from scipy.io import loadmat
 import numpy as np
-
+from tqdm import tqdm
 
 def compute_stokes_from_raw(raw: np.ndarray) -> np.ndarray:
     I0, I45, I90, I135 = raw
@@ -17,7 +17,7 @@ def compute_stokes_from_raw(raw: np.ndarray) -> np.ndarray:
 def polarimetric_parameters_from_stokes(samples) -> Dict[str, np.ndarray]:
     out_samples: List[Dict] = []
 
-    for sample in samples:
+    for sample in tqdm(samples, desc="Stage 2: Polarimetric Parameters"):
         raw = sample["raw"].astype(np.float32)        # (4, H, W)
         stokes = compute_stokes_from_raw(raw)         # (3, H, W)
         S0, S1, S2 = stokes
