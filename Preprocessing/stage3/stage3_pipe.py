@@ -1,145 +1,172 @@
-from typing import List, Dict, Optional
 import numpy as np
+import cv2
+from typing import List, Dict
+from tqdm import tqdm
 
 
-def _compute_R(I0: np.ndarray, I: np.ndarray, rho: np.ndarray) -> np.ndarray:
-    return I0 - I * (1.0 - rho) / 2.0
+def _estimate_background_light(S0: np.ndarray, top_percent: float = 0.001) -> float:
+    """
+    Simple approximation of B∞:
+    Take the mean of the brightest 'top_percent' pixels in S0.
+    """
+    flat = S0.reshape(-1)
+    k = max(1, int(len(flat) * top_percent))
+    idx = np.argpartition(flat, -k)[-k:]
+    return float(np.mean(flat[idx]))
 
 
-def _estimate_K_blockwise(
-    I: np.ndarray,
-    R: np.ndarray,
-    block_size: int = 32,
-    k_values: Optional[np.ndarray] = None,
-) -> np.ndarray:
+def _score_K(I_block: np.ndarray,
+             R_block: np.ndarray,
+             K: float,
+             alpha: float = 1.0) -> float:
+    """
+    Objective L = Leme - Linf  (Eqs. (26)-(28), simplified):
+      - Leme: log contrast of D(x)
+      - Linf: penalty for values outside [0, 1]
+    We work on normalized intensities (0..1).
+    """
+    eps = 1e-8
+    # Eq. (24): D_i(x) = I_i(x) - R_i(x) / K_i
+    D = I_block - R_block / (K + eps)
 
-    if k_values is None:
-        # Discrete candidates in [0.1, 0.9]
-        k_values = np.linspace(0.1, 0.9, 17, dtype=np.float32)
+    # Contrast term (simplified: use block max/min instead of sub-blocks)
+    D_max = np.max(D)
+    D_min = np.min(D)
 
+    if D_max <= eps or D_min <= eps:
+        Leme = -1e9  # terrible contrast
+    else:
+        Leme = 20.0 * np.log10(D_max / (D_min + eps))
+
+    # Info-loss term: squared violations outside [0, 1]
+    over = np.maximum(0.0, D - 1.0)
+    under = np.minimum(0.0, D)
+    Linf = np.mean(over ** 2 + under ** 2)
+
+    return float(Leme - alpha * Linf)
+
+
+def _estimate_K_blockwise(I: np.ndarray,
+                          R: np.ndarray,
+                          block_size: int = 64,
+                          k_values: np.ndarray | None = None,
+                          alpha: float = 1.0) -> np.ndarray:
+    """
+    Approximation of APSLO + spatial fitting:
+      * tile the image into blocks
+      * for each block, grid-search K that maximizes L
+      * upsample K map back to full resolution with bilinear interpolation
+    """
     H, W = I.shape
-    K_map = np.zeros((H, W), dtype=np.float32)
-    eps = 1e-6
+    if k_values is None:
+        # K ∈ (0,1]; avoid extremely small values
+        k_values = np.linspace(0.1, 1.0, 10, dtype=np.float32)
 
-    for y in range(0, H, block_size):
-        for x in range(0, W, block_size):
-            ys, ye = y, min(y + block_size, H)
-            xs, xe = x, min(x + block_size, W)
+    nH = (H + block_size - 1) // block_size
+    nW = (W + block_size - 1) // block_size
 
-            I_blk = I[ys:ye, xs:xe]
-            R_blk = R[ys:ye, xs:xe]
+    K_blocks = np.zeros((nH, nW), dtype=np.float32)
 
+    for bi in range(nH):
+        for bj in range(nW):
+            y0 = bi * block_size
+            x0 = bj * block_size
+            y1 = min((bi + 1) * block_size, H)
+            x1 = min((bj + 1) * block_size, W)
+
+            I_block = I[y0:y1, x0:x1]
+            R_block = R[y0:y1, x0:x1]
+
+            best_score = -1e12
             best_K = 0.5
-            best_score = -np.inf
 
-            for Kc in k_values:
-                # Eq. (21) – direct term D(x)
-                D_blk = (I_blk - R_blk) / (Kc + eps)
-                D_blk = np.clip(D_blk, 0.0, None)
+            for K in k_values:
+                s = _score_K(I_block, R_block, K, alpha=alpha)
+                if s > best_score:
+                    best_score = s
+                    best_K = K
 
-                D_min = float(D_blk.min())
-                D_max = float(D_blk.max())
+            K_blocks[bi, bj] = best_K
 
-                # Skip degenerate blocks
-                if D_min <= 0 or D_max <= 0 or D_max <= D_min:
-                    continue
+    # "Spatial fitting": just interpolate the coarse K grid to full resolution
+    K_full = cv2.resize(
+        K_blocks,
+        (W, H),
+        interpolation=cv2.INTER_CUBIC
+    ).astype(np.float32)
 
-                # Contrast metric inspired by Eq. (27)
-                score = np.log10(D_max / D_min)
-
-                if score > best_score:
-                    best_score = score
-                    best_K = float(Kc)
-
-            K_map[ys:ye, xs:xe] = best_K
-
-    return K_map
+    return K_full
 
 
-def _compute_B_from_K(
-    I0: np.ndarray,
-    I: np.ndarray,
-    rho: np.ndarray,
-    K: np.ndarray,
-) -> np.ndarray:
-    eps = 1e-6
-    numerator = 2.0 * I0 - I * (1.0 - rho)
-    denom = 2.0 * np.clip(K, eps, None)
-    return numerator / denom
-
-
-def _compute_L_from_K_Binf(
-    I: np.ndarray,
-    I0: np.ndarray,
-    rho: np.ndarray,
-    K: np.ndarray,
-    B_inf: float,
-) -> np.ndarray:
-
-    eps = 1e-6
-
-    term1 = 2.0 * K * I - 2.0 * I0 + I * (1.0 - rho)
-    term2 = 2.0 * K * B_inf - 2.0 * I0 + I * (1.0 - rho)
-
-    denom = np.clip(term2, eps, None)
-    L = B_inf * term1 / denom
-    return L
-
-
-def _simple_gamma(L: np.ndarray, gamma: float = 0.85) -> np.ndarray:
-    L = np.clip(L, 0.0, None)
-    L_max = float(L.max()) if L.max() > 0 else 1.0
-    L_norm = L / L_max
-    L_gamma = np.power(L_norm, gamma)
-    return L_gamma * L_max
-
-
-def stage3_underwater_restoration(
-    samples: List[Dict],
-    block_size: int = 32,
-    k_values: Optional[np.ndarray] = None,
-    gamma: float = 0.85,
+def stage3_restore_piom(
+    stage2_samples: List[Dict],
+    block_size: int = 64,
+    alpha: float = 1.0,
+    k_values: np.ndarray | None = None
 ) -> List[Dict]:
+    """
+    Stage 3: Implement PIOM-style restoration from Li et al. (2025),
+    simplified:
+      - uses Eq. (22) for ℜ(x)
+      - Eq. (21) and (24) for D_i(x)
+      - Eqs. (26)-(28) for the objective to estimate K locally
+      - Eq. (23) for final L(x) using a simple B∞ estimator.
 
-    out_samples: List[Dict] = []
+    Assumes each sample has:
+      sample["raw"]   -> (4, H, W) [I0, I45, I90, I135]
+      sample["stokes"]-> (3, H, W) [S0, S1, S2]
+      sample["dolp"]  -> (H, W)    rho(x)
+    """
+    restored_samples: List[Dict] = []
 
-    for sample in samples:
-        I0 = sample["raw"][0].astype(np.float32)          # 0° channel
-        S0, _, _ = sample["stokes"].astype(np.float32)    # total intensity
-        rho = sample["DoLP"].astype(np.float32)           # DoLP
+    for sample in tqdm(stage2_samples, desc="Stage 3 (PIOM)"):
+        raw = sample["raw"]      # (4, H, W)
+        stokes = sample["stokes"]  # (3, H, W)
+        dolp = sample["DoLP"]    # (H, W)
 
-        # --- Step 1: ℜ(x) ---
-        R = _compute_R(I0, S0, rho)
+        I0 = raw[0].astype(np.float32)     # horizontal polarization
+        S0 = stokes[0].astype(np.float32)  # total intensity I(x)
+        rho = np.clip(dolp.astype(np.float32), 0.0, 0.99)
 
-        # --- Step 2: K(x) blockwise optimisation ---
-        K_map = _estimate_K_blockwise(S0, R, block_size=block_size, k_values=k_values)
+        # Normalize intensities to [0,1] for stability
+        I_max = np.max(S0) + 1e-8
+        I = S0 / I_max
+        I0_n = I0 / I_max
 
-        # --- Step 3: Backscatter B(x) ---
-        B = _compute_B_from_K(I0, S0, rho, K_map)
+        # Eq. (22): ℜ(x) = I0(x) - I(x)*(1 - ρ(x))/2
+        R = I0_n - I * (1.0 - rho) * 0.5
 
-        # --- Step 4: Global B∞ estimate ---
-        # Use a high percentile of B as background backscatter approximation
-        # (simplified version of Eq. (37)'s brightest-region selection).
-        B_flat = B.flatten()
-        B_inf = float(np.percentile(B_flat, 95))
+        # Blockwise estimation of K (approximate APSLO + spatial fitting)
+        K_map = _estimate_K_blockwise(
+            I=I,
+            R=R,
+            block_size=block_size,
+            k_values=k_values,
+            alpha=alpha,
+        )
 
-        # --- Step 5: Unattenuated radiance L(x) ---
-        L_raw = _compute_L_from_K_Binf(S0, I0, rho, K_map, B_inf)
+        # Background light B∞ from S0 (use un-normalized intensity)
+        B_inf = _estimate_background_light(S0)
 
-        # --- Step 6: Gamma contrast enhancement ---
-        L_gamma = _simple_gamma(L_raw, gamma=gamma)
+        # We’ll compute L(x) in normalized domain, then scale back.
+        B_inf_n = B_inf / I_max
+        eps = 1e-8
+
+        # Eq. (23) in normalized form:
+        # L = B∞ [2K I - 2 I0 + I (1 - ρ)] / [2K B∞ - 2 I0 + I (1 - ρ)]
+        num = B_inf_n * (2.0 * K_map * I - 2.0 * I0_n + I * (1.0 - rho))
+        den = (2.0 * K_map * B_inf_n - 2.0 * I0_n + I * (1.0 - rho))
+
+        L_n = num / (den + eps)
+
+        # Undo normalization, clip to reasonable range
+        L = np.clip(L_n * I_max, 0.0, I_max).astype(np.float32)
 
         new_sample = dict(sample)
-        new_sample["K"] = K_map.astype(np.float32)
-        new_sample["B"] = B.astype(np.float32)
-        new_sample["B_inf"] = B_inf
-        new_sample["radiance_raw"] = L_raw.astype(np.float32)
-        new_sample["radiance"] = L_gamma.astype(np.float32)
-        new_sample["meta"] = {
-            **sample.get("meta", {}),
-            "stage3": "piom_restored",
-        }
+        new_sample["stage3_L"] = L
+        new_sample["stage3_K"] = K_map.astype(np.float32)
+        new_sample["stage3_Binf"] = float(B_inf)
 
-        out_samples.append(new_sample)
+        restored_samples.append(new_sample)
 
-    return out_samples
+    return restored_samples
