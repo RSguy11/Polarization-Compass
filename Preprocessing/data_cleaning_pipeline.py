@@ -4,8 +4,8 @@ import pandas as pd
 from scipy.io import loadmat
 from PIL import Image
 from typing import List, Dict, Union, Literal
-from stage3.stage3_pipe import stage3_underwater_restoration
-from visualizations.stage3_visualizations import visualize_and_save_stage3
+from stage3.stage3_pipe import stage3_restore_piom
+from visualizations.stage3_visualizations import visualize_and_save_stage3_piom
 from visualizations.stage2_visualizations import visualize_and_save_stage2
 from stage2.stage2_pipe import polarimetric_parameters_from_stokes
 from visualizations.stage1_visualizations import visualize_and_save_stage1
@@ -13,7 +13,6 @@ from stage1.stage1_pipe import pseduo_four_channel_desnoising, intensity_guilded
 from data_Loader.loading_mat_data import add_mosaic_to_samples, load_mat_file
 
 def main():
-
     ##### LOAD DATA ########
 
     orginal_file = load_mat_file(noise_level="High")
@@ -54,13 +53,13 @@ def main():
 
      ##### STAGE 3 ########
     
-    stage3_out = stage3_underwater_restoration(
+    stage3_out = stage3_restore_piom(
         stage2_out,
         block_size=32,
-        gamma=0.85,
+        alpha=0.85,
     )
 
-    visualize_and_save_stage3(
+    visualize_and_save_stage3_piom(
         stage2_samples=stage2_out,
         stage3_samples=stage3_out,
         out_dir="stage3_visuals",
