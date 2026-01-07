@@ -6,9 +6,6 @@ Group Members: Sean Lawrence, Matthew Morcos, Moaz Rauf, Saad Rizvi
 Facility Supervisor: Muhammad Alam
  
 
-
-
-
 Executive Summary 
 The Bio-Inspired Polarization Compass project explores the feasibility of using light polarization for underwater navigation, inspired by biological systems that detect polarized light for orientation. Traditional methods such as GPS are ineffective underwater due to electromagnetic attenuation, while sonar provides only limited, relative positioning. This study aims to determine whether a polarization-based system can accurately predict solar azimuth within ±5°, serving as a low-cost, low-impact alternative for underwater localization.
 The project combines optical modeling, hardware development, and machine-learning analysis. Python simulations will model how polarization patterns change with depth, turbidity, and light attenuation to guide hardware design. A custom sensing unit will be built around an ESP32 microcontroller, equipped with pressure, humidity, and temperature sensors, and a polarization camera enclosed in a 3D-printed waterproof housing designed in Fusion 360. Circuit design and electrical validation will be completed in KiCad and LTSpice, ensuring reliability prior to fabrication.
