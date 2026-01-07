@@ -1,0 +1,306 @@
+
+Bio-inspired Polarization Compass
+ELEC 490 / 498 Blueprint
+Submitted by Group #48
+Group Members: Sean Lawrence, Matthew Morcos, Moaz Rauf, Saad Rizvi
+Facility Supervisor: Muhammad Alam
+ 
+
+Executive Summary 
+The Bio-Inspired Polarization Compass project explores the feasibility of using light polarization for underwater navigation, inspired by biological systems that detect polarized light for orientation. Traditional methods such as GPS are ineffective underwater due to electromagnetic attenuation, while sonar provides only limited, relative positioning. This study aims to determine whether a polarization-based system can accurately predict solar azimuth within ±5°, serving as a low-cost, low-impact alternative for underwater localization.
+The project combines optical modeling, hardware development, and machine-learning analysis. Python simulations will model how polarization patterns change with depth, turbidity, and light attenuation to guide hardware design. A custom sensing unit will be built around an ESP32 microcontroller, equipped with pressure, humidity, and temperature sensors, and a polarization camera enclosed in a 3D-printed waterproof housing designed in Fusion 360. Circuit design and electrical validation will be completed in KiCad and LTSpice, ensuring reliability prior to fabrication.
+Collected polarization imagery and environmental data from controlled tank tests will train regression models in PyTorch and TensorFlow, including linear regression, SVR (RBF), and Random Forest methods. Each model will undergo cross-validation, sensitivity testing, and robustness evaluation to confirm consistent accuracy across varied conditions.
+By integrating simulation, validated hardware, and data-driven modeling, the project will assess the practicality of polarization as an underwater compass. A successful outcome would demonstrate a novel, bio-inspired navigation technique with potential applications in autonomous underwater vehicles, environmental monitoring, and marine exploration. 
+Table of Contents
+Executive Summary	2
+Table of Contents	3
+1. Introduction	5
+1.1 Design Problem	5
+1.2 System specifications	6
+2. Methodology/ Work Breakdown Structure	7
+2.1 Approach	7
+Phase 1 – Simulation and Modeling:	7
+Phase 2 – Hardware Prototyping and Validation:	7
+Phase 3 – Data Collection and Machine-Learning Pipeline:	7
+Iterative Development and Validation:	7
+2.2 Design Tools, hardware, instrumentation	8
+2.3 Validation and Testing	9
+2.3.1 Hardware Validation	10
+Breadboard Prototyping (Pre-Fabrication)	10
+Enclosure Integrity Validation	10
+PCB Bring-Up (Post-Fabrication)	11
+Integrated System Validation	11
+2.3.2 Software Validation	11
+Common Testing Parameters	12
+Cross Validation	12
+Sensitivity and System Reproduction	12
+Robustness and Environmental Simulation Validation	12
+Validation and testing conclusion	13
+2.4 Potential Problems and Mitigation Strategies	13
+Problem 1 – Enclosure Leakage/ Mechanical Seal Failure	13
+Problem 2 – Model Performance/ Loss Convergence	14
+Problem 3 – PCB Failure / Sensor Malfunction	14
+Problem 4 – Time Constraints / Scheduling Delays	14
+3.Milestones/ Division of Labor	15
+4. Budget	16
+Hardware Bill of Materials	16
+Software Bill of Materials	17
+Infrastructure Budget	17
+Supervisor Provided Resources	17
+5. Risk Mitigation, Environmental Impact, and Legal Considerations	18
+5.1 Health and Safety Risks	18
+5.2 Environmental Impact	18
+5.3 Legal Considerations	18
+6. Progress to Date	19
+7. Conclusion	19
+References	21
+Appendix	21
+
+
+ 
+1. Introduction
+As the world has evolved, humanity has ventured to different regions of the world, both above the clouds and below the sea. Whether the nature of these ventures is explorative, militaristic, or for pleasure, these domains produce unique technological challenges that drive innovation. 
+
+One such challenge is navigation in underwater environments. Current sub-aquatic navigation devices face many limitations. GPS fails to work undersea as the electromagnetic signals from the orbiting satellites are heavily damped in water and hence cannot be detected by the receiver. [2] [1] Sonar, the most utilized underwater navigation system, is limited in range, leading to bounded localization as opposed to precise localization. [3] 
+
+This document is a feasibility study to determine if navigation via polarization is a viable solution to advance underwater navigation. Included is a more in-depth look at the problem underwater polarization-based navigation. Also in this blueprint is a methodology breakdown to display how the study will be conducted and what tools/Algorithms will be used. There will be a breakdown to determine how this will be executed, what the timeline will be and what it will cost. Finally, there will be a review to determine risks, environment Impact and Legal considerations.
+
+1.1 Design Problem
+The central design problem for this paper is determining the feasibility of polarization as an underwater compass, decided by a system being able to predict the heading within < 5°.
+
+In the past, compass-based navigation via polarization was limited to controlled, clear sky conditions. Models such as the Hough Transform Support could deliver a max error of 11.73° under cloudy conditions, compared to 1.566° when in optimal conditions. [1] Although acceptable, it was also determined that the max error could be reduced with a switch to linear regression of AI models, with some instances able to reduce max error to 2.375° in sub-optimal conditions. [1]
+
+These show promising results for above water navigation, but being underwater comes with unique challenges as polarization patterns will be refracted and absorbed by the water leading to issues in obtaining the correct depth of linear polarization (DoLP) and angle of linear polarization (AoLP) from the camera system.
+
+The system will need to be able to intake polarization results at various depths to properly simulate what an underwater vessel would be receiving. The camera system will need to be able to survive said various depths without being damaged by the domain.
+1.2 System specifications
+Functional requirements	Target value	Tolerance
+Solar Azimuth for compass heading	<5 °	±1 °
+		
+		
+Interface requirements		
+Camera logged Images 	10k	±1k
+		
+		
+Performance requirements		
+DoLP, AoLP data	95% 	±5%
+Azimuth Data Accuracy	95%	±5%
+Waterproof enclosure tolerance	100%	0%
+Table 1:Table going over system specifications for project
+The functional requirement for the Solar Azimuth prediction was set to 5 ° with a 1° tolerance, this was chosen as it only related to less than 1 meter displacement the per 11.5 meters traveled, found from the trigonometric formula below.
+Δx=Distance traveled*sin⁡(Target degrees)
+Equation 1: Right angle triangle property with variables changed to be project specific
+The inference requirement dataset were chosen to be 10K as it acts as a reasonable target from the camera in the project data collection phase. It is in line with other projects who have used marks of 8000-9000 images as their models inputs [1]
+Finally, the performance requirements for DoLP, AoLP and Azimuth data accuracy were set to be 95% with a 5% tolerance. The DoLP, and AoLP are values extracted from the polarization camera images and used to train the model, the same is the case with the Azimuth data label for those images. Meaning if they lower the accuracy of the model is likely to drop.
+2. Methodology/ Work Breakdown Structure
+2.1 Approach 
+The project follows a modular, evidence-driven approach that integrates hardware design, optical modeling, and data-driven algorithm development. Work proceeds in three primary phases: (1) simulation and modeling, (2) hardware prototyping and validation, and (3) data collection and algorithmic evaluation.
+Phase 1 – Simulation and Modeling:
+The initial stage focuses on validating the theoretical feasibility of underwater polarization-based navigation. Optical models based on the Beer–Lambert law are implemented in Python to simulate attenuation, turbidity, and polarization distortion at different depths. This allows the team to estimate achievable signal-to-noise ratios and confirm that the expected DoLP and AoLP variations are measurable before hardware fabrication begins.
+Phase 2 – Hardware Prototyping and Validation:
+Once simulation results confirm feasibility, a custom sensing module centered on an ESP32 microcontroller is designed in KiCad and verified in LTSpice to ensure electrical stability. Mechanical integrity is developed in Fusion 360 through an iterative design-print-test cycle for the waterproof enclosure. Each subsystem (power regulation, sensing, data logging, and enclosure sealing) is validated independently before integration, following a zero-trust design philosophy to isolate faults early.
+Phase 3 – Data Collection and Machine-Learning Pipeline:
+The integrated prototype will record synchronized polarization imagery and environmental sensor data during tank trials. These data are pre-processed with NumPy and used to train regression models in PyTorch and TensorFlow for solar-azimuth prediction. Standard L2 linear regression, SVR (RBF), and Random Forest with ridge regularization are compared using k-fold cross-validation and robustness testing under simulated turbidity and noise.
+Iterative Development and Validation:
+Each phase feeds quantitative feedback into the next: simulation guides hardware tolerances, hardware tests refine model assumptions, and software results inform future prototype revisions. Collaboration and version control are maintained through GitHub and Teams, while Discord supports real-time coordination. This systematic, tool-justified approach ensures that the final system can reliably assess whether polarization can achieve sub-5° heading accuracy underwater.
+
+2.2 Design Tools, hardware, instrumentation
+ Throughout the duration of the project the following design tools will be used as summarized in the following table:
+Table 2: Software tools to be used throughout the duration of the project
+Design Tools	Justification
+Windows 10/11	Main Operating system that will be used throughout the project due to compatibility with all design and software tools
+LTSpice	LTSpice used for hardware and circuit verification before PCB fabrication
+KiCad	Used for PCB design. Software is needed for schematic design and PCB routing.
+Fusion 360	Enclosure design. Will be used in the design of the waterproof enclosure the camera and PCB will be placed in
+Python	For the machine learning aspect of the project
+C/C++	Microcontroller firmware and sensor interfacing
+PyTorch, TensorFlow	PyTorch and tensor flow will be used in designing the model to predict solar azimuth from polarization data.
+NumPy	Used for data preprocessing
+Arduino IDE/VS Code	Used for debugging and embedded development of ESP32
+
+The following table summarizes and lists all development and collaboration tools that will be used throughout the duration of the project:
+Development/Collaboration Tools	Justification
+Discord	Primary software used for team communication, meeting reminders, and discussion space
+Teams	Primary software used for file storage and work collaboration; primary workspace
+GitHub	Main repository for all code and design files 
+Repo Link: RSguy11/Polarization-Compass
+
+Table 3: Development and collaboration tools to be used throughout the project
+The following table summarizes all the hardware that will be used throughout the duration of the project:
+
+Hardware and Instrumentation 	Justification
+ESP 32 Microcontroller Board	‘Brain’ of hardware system, used for reading sensors and logging data. 
+MS5387-30BA Pressure Sensor	Measures water pressure during underwater tests
+DS18B20 Temperature Sensor 	Will be used to measure temperature variations 
+SHT31-D Humidity Sensor	Detects condensation and internal leakage in the waterproof enclosure
+LM2596 Buck Converter Module	Used to regulate voltage to protect hardware 
+Micro SD Card + Module	Used to store data
+Waterproofing Enclosure	Will be designed and used to store polarization camera and hardware during testing and data collection
+Polarization Camera	Captures polarization data
+Table 4: Hardware to be used for project
+The following resources will be used to gain the necessary knowledge into completing the project:
+Resource	Justification
+UIUC Shallow-Water Research 	Used as a resource to guide the team 
+IEEE Xplore 	Useful resource that gives a good background into polarization, navigation, and the problems that arise with under water GPS
+Table 5: Resources such as papers that were used/will be used for the project
+They will be implemented using the following block diagrams. The first representing the PCB hardware, the second being a high level diagram of the system
+                          
+
+2.3 Validation and Testing
+The foundation of our testing and validation strategy is a methodical, modular approach. Before testing the integrated system, we will independently validate each component to make sure our final findings are reliable and repeatable. We can identify problems, deal with them effectively, and increase system confidence at every level thanks to this methodology. Achieving a maximum solar azimuth prediction error of less than 5 degrees is the main requirement that the entire procedure is intended to validate.
+2.3.1 Hardware Validation
+Data collection is based on the hardware system which includes a waterproof enclosure for our custom PCB for environmental data logging. The dataset, which is necessary for training the models, would be impossible to acquire in the case this system fails. As a result, the validation strategy is methodical and modular, based off a “zero-trust” principle where each components functionality is to be independently validated prior to integration.
+PCB design specifically includes Design for Testability (DfT) as suggested by the project’s supervisor. To test for any short circuits or power draw on specific components, isolation jumpers (0-ohm resistors) will be used to divide the power rails for the microcontroller and each sensor. All-important communication and power lines will have copper test points to make it easier for the use of multimeter or oscilloscope probing.
+
+Breadboard prototyping, enclosure integrity, PCB bring-up, and final system integration are the four sequential steps that make up the validation process.
+Breadboard Prototyping (Pre-Fabrication)
+Prior to final PCB design, this step verifies fundamental logic, component selection, and the software libraries. To check the toolchain and fundamental operation, we will first upload a straightforward "blink" sketch to the ESP32 microcontroller. After connecting all of the I2C and One-Wire sensors (MS5837 Pressure, SHT31-D Humidity, DS3231 RTC, DS18B20 Temp), we will run an I2C scanner script to make sure all of the devices are located and that there are no address conflicts Each sensor will also be queried to ensure that they provide accurate information. At the same time, we will write, close, and read back a log file with this sensor data to test the SPI-based Micro SD Card Module.
+The LM2596 Buck Converter will be tested independently on a perfboard rather than a solderless breadboard. To make sure it is stable, we will use a multimeter to measure its output voltage both with and without a load. To ensure that the voltage ripple is within the permissible bounds for our delicate components, an oscilloscope will be utilized.
+Enclosure Integrity Validation
+This test is imperative for asset safety and is carried out in parallel with PCB development. A completely waterproof seal is integral for the 3-D printed enclosure, acrylic disk, O-rings and cable glands. To ensure this the enclosure, prior to any electronic installation, will be immersed in the test tank at the maximum planned depth (0.9 m) for at least two hours – this is longer than any planned data collection run – with a desiccant pack inside. The interior must be completely dry when retrieved. Any moisture is a sign of failure, meaning the enclosure must be redesigned, O-rings may be the wrong size, or epoxy may have been incorrectly applied to the 3D print.
+PCB Bring-Up (Post-Fabrication)
+This is a thorough, step-by-step check of the fabricated PCB. First, the unpowered board will be looked at under magnification to see if there are any manufacturing flaws or solder bridges. A multimeter will be used in continuity mode to make sure that there are no shorts between the GND and main power (VIN) rails.
+After the board is checked visually, the powered test will be started. We will apply power and check the buck converter's output test point to make sure the voltage is stable and correct. The isolation jumpers should be open. Next, we will only close the MCU's power jumper and flash the "blink" sketch to check that the microcontroller is working and to find out how much current it draws at rest.
+Now that we know the MCU is working, we can move on to integrating the modular sensor. We will close the isolation jumpers for one peripheral block at a time (for example, the SHT31-D), run its test script, and check that it gives us reasonable data. This will be done for every sensor on the I2C, One-Wire, and SPI buses. This way, a single broken sensor won't bring down the whole bus. Finally, we will run the full data logging script with all the jumpers closed to make sure that the whole PCB (MCU, all sensors, RTC, and SD card) works together without any power drops or data bus contention.
+Integrated System Validation
+The last hardware test checks to see if the PCB works with the IMU and polarization camera. A "dry run" will be done on the lab bench with the fully assembled system to make sure that the timestamps on the PCB's sensor log files and the camera's image files are perfectly in sync.
+After a successful dry run, we will do the final "wet test." As said in the proposal, the fully integrated system will be put in the test tank for a full 1.5-hour data collection run. The system must finish the run, the data it gets must be complete and in the right order, and the internal humidity sensor (SHT31-D) must confirm that the seal on the enclosure was not broken for the test to be successful.
+2.3.2 Software Validation
+In this system, three models will be trained and implemented attempting to meet the feasibility goal of less than 5°. The first model will be an L2 standard linear regression model, it was the model used in previous above ground polarization compasses achieving a 2.375° in sub-optimal conditions. [2] It should provide a baseline for testing systems. 
+The remaining models include a Support Vector Regression using a Radial Basis Function (SVR(BRF)), and a Random Forest Regressor with Ensemble Ridge regularization. Each function will operate on and be tested with the following tests and validation methods.
+Common Testing Parameters 
+All models must have similar parameters given to ensure accuracy and fairness with testing. The dataset for all models will be a 20k supervised dataset, comprised of 10K standard images and 10K images augmented to with minor geometric shifts being rotation between 10-15° and brightness/ color augmentation between 1-3%.
+ A seed will also be set with a standard pyTorch standard Xavier uniform function in pyTorch, initializing the neural network. While this seed may change it will remain consistent for each model upon each iteration or retraining.
+Cross Validation
+A common issue with machine learning models is overfitting, where the model performs with its training dataset but is unable to work with new unseen inputs. The test used to ensure generalization with these models is a k-fold cross validation. Using the 20k dataset k number of folds is chosen, in this case 5. The dataset will be broken into k folds. The model will train on k-1 folds and validated on 1 remaining fold. This will repeat till every fold has been used as the validation fold. 
+The Cross-validation systems will be used for the validation of each model, producing imetrics used to detect overfitting. Mean absolute error (MAE) ≥5°, root mean quared error (RMSE) >10%  , and standard deviation of weight variance across folds > 15%. The cross validation should then produce the hyperparameters for each model needed to keep metrics at acceptable ranges
+Sensitivity and System Reproduction 
+Following the cross-validation test and successful training, a sensitive and reproduction test will be conducted to ensure the model is not hallucinating based on training bias. To complete this test, each model will be retrained 10 times, with each retraining giving the models a unique seed. If the MAE and RMAE are within 10% of their previous values.
+In addition, as part of this test, sensitivity validation will be monitored. The DoLP/ AoLP will the modulated in specific cases by ±2%. The resulting solar azimuth will be monitored to ensure output value is correlated correctly with the limit being ±10%.
+Exceeding any of these limits will necessitate the re-tuning/retraining of the models to ensure they are sufficiently stable for this study.
+Robustness and Environmental Simulation Validation
+The final software validation effort will break down how they are performing in relation to different weather/underwater conditions. In the past polarization-based machine learning models have been adversely affected by cloudy conditions and similar weather phenomena. To fairly determine feasibility, models should be trained to expect these roadblocks. 
+To stimulate these conditions properly Gaussian and Poisson noise with a standard deviation of noise at a range of 0.01-0.05 will be added to random input DoLP/AoLP at testing. Turbidity will also be simulated by overlaying randomized haze layers with optical densities between 0.1 and 0.3 to mimic haze caused by foreign objects in the water. After testing each model must then maintain the MAE ≤5° and RMSE of ≤10% baseline or be re-tuned/retrained.
+Validation and testing conclusion
+The validation strategies laid out above will help ensure that all systems both hardware and software, operate up to capacity outline in. Making all systems robust, reproducible, and safe. 
+The hardware stages set up data protection pipelines, ensuring that materials and systems can operate while enduring testing conditions. The software validations act to confirm all models are given the same initial conditions. That they avoid falling to common machine learning pitfalls, and that they are sufficiently robust to work throughout this feasibility study. When all criteria is meet the system will be able to properly test and validate weather underwater polarization is feasible. All these tests are recorded in the table in the appendix.
+2.4 Potential Problems and Mitigation Strategies
+Problem 1 – Enclosure Leakage/ Mechanical Seal Failure
+This issue relates to the risk faced by an underwater data collection system. When underwater, there are many different risks with cracks in the material or leaks in container’s seal. If these were to occur it would result in over $200 CAD in damage excluding the polarization camera itself. It would set the study back multiple weeks, forcing the team to rebuild the system.
+Given the severity of these risks, the enclosure will undergo all testing and validation procedures outlined above, including the pressure-tank pretests using the humidity sensor and a desiccant pack. All cable openings will be secured with epoxy, to make sure that no leakage could occur. The enclosure will be the primary focus of risk mitigation and in conjunction with validation steps will be inspected by all project members to ensure its safety.
+Problem 2 – Model Performance/ Loss Convergence
+Model performance and loss convergence represent another major risk for this project. They cover model hallucinations, failure to converge, or non-reproducible results. If the models do not perform correctly the study will be compromised and any conclusion drawn would be invalid. These issues can be caused by a variety of sources, including an over-aggressive learning rate, imbalanced data with feature scaling errors, or poorly chosen hyperparameters for models. If these issues occur it could necessitate a model rebuild for any or all the given models. This would set the project back multiple weeks.
+To mitigate this the models will use a cosine scheduler for the learning rate. When implemented it will adjust the learning rate as the model trains through its epochs. The system will follow all above validation and testing to avoid overfitting. In addition, there will be independent code dedicated to monitoring errors or runtime errors that may not stop training but would result in a system failure in execution. These include monitoring not a number (NaN) values and logging the learning curve every 1,000 images trained. If convergence still fails the system will take multiple actions to try and obtain a successful retrain. These include reducing initial learning rate, temporarily falling back to best performing attempt and tuning from there, and initializing a new seed for the model. 
+Problem 3 – PCB Failure / Sensor Malfunction 
+A common challenge when dealing with systems involving hardware is unplanned sensor failures or issues with the PCB. This can relate to poor soldering, incorrect routing, or component burnout.  If any of the components were to fail, then the system would be set back multiple weeks while parts are replaced and rebuilt. This risk is further exacerbated by the underwater domain the system will be implemented in.
+To mitigate this before any fabrication, the PCB will be put through a Design for Testability (DFT) review, with testing being done on all breadboard prototypes. All components will also be procured from verified sources with as much due diligence to their quality as possible. While this does not eliminate all risk of PCB failure and sensor malfunction, it should mitigate the risk of it.
+Problem 4 – Time Constraints / Scheduling Delays 
+The final risk for this project is related to Time Constraints and possible Scheduling Delays. Currently, all team members are full-time students with other classes and priorities to attend to. This could lead to timing issues or project slowdowns. In addition, access to university lab facilities and the polarization camera are not unlimited. While exact time delays are hard to predict, we expect them to delay the project by under a week.
+The current solution to mitigate these risks is to coordinate weekly meetings with all members tracking all milestone progress. These meetings will also ensure workloads remain reasonable and that no member would be overburdened. The team will also follow the phase breakdown in the schedule and will ensure that all deadlines are met on time. These measures should mitigate these scheduling risks and support the success of the project.
+
+Risk 	Mitigation	Recovery	Expected Impact
+Enclosure Leakage	Pressure tank pre-test. Team Inspection	Re-order new Components, rebuild system	1-2 week delay, $200 loss
+Model Performance	Cosine LR Scheduler, NaN monitoring, validation checkpoints	Retrain from last stable checkpoint. Adjust LR speed	≤ 1 week delay
+PCB failure /sensor malfunction  	DTF review, breadboard verification.	Re-order new Components, rebuild system	1-2 week delay
+Scheduling / Time constraints 	Weekly meetings. Task redistribution	Redistribute workload.	≤ 1 week delay
+Table 6: Table reviewing possible project risks, risk mitigation/ recovery, and risk impact.
+3.Milestones/ Division of Labor
+The project follows a four-month development cycle with clearly defined milestones from system design through validation and demonstration. Tasks are distributed according to each member’s specialization to maximize efficiency. Weekly progress meetings and GitHub issue tracking will ensure accountability and continuous integration across hardware, firmware, and software domains.
+No.	Milestone	Due Date	Responsible Members
+1	System Design Complete	Nov 8 2025	Sean, Matthew, Saad
+2	Simulation & Prototype Setup	Nov 22 2025	Moaz, Saad
+3	PCB Design and Validation	Dec 6 2025	Moaz, Sean
+4	Enclosure Fabrication & Assembly	Dec 20 2025	Moaz, Saad
+5	Hardware Integration & Firmware Bring-Up	Jan 5 2026	Moaz, Sean
+6	Model Training and Baseline Evaluation	Jan 20 2026	All Members
+7	Model Training and Baseline Evaluation	Jan 30 2026	Matthew, Sean, Saad
+8	Robustness and Sensitivity Analysis	Feb 8 2026	Sean, Saad
+9	Model Training and Baseline Evaluation	Feb 20 2026	All Members
+10	Final Documentation and Submission	Mar 20 2026	All Members
+Table 7: Depicts the project Milestones
+This timeline ensures hardware validation is completed before the start of intensive data collection and model training, culminating in a mid-February demonstration aligned with course evaluation deadlines.
+4. Budget 
+Hardware Bill of Materials
+The table below lists all the hardware that will be needed for the project:
+Part Name	Description	Quantity	Estimated Cost (CAD)	Potential Supplier 
+ESP Dev board	Microcontroller	1	20	Amazon / Digi key
+MS5837-30BA	Pressure Sensor	1	42.99	Adafruit
+DS18B20	Temperature Sensor	1	10	Adafruit
+SHT31-D	Huimidity Sensor	1	20	Adafruit
+DS3231	RTC Module	1	8	Amazon
+LM2596	Buck Converter	1	10	Amazon
+Micro SD Card + Module	Data storage 	1	10	Amazon
+O-ring Kit + Cable Glands	Waterproofing	1	25	Home Hardware
+Acrylic disk + Epoxy	Enclosure	1	26	Home Depot
+Table 8: Hardware BOMs
+Looking at the table above, the total cost, to the nearest dollar would be $172-212 CAD depending on supplier and availability
+Software Bill of Materials 
+Throughout this project, most of the software that will be used will be open-sourced and free of charge. The table below summarises the software bill of materials: 
+Software	License Type	Cost
+Python, PyTorch, TensorFlow, NumPy	Open source	Free
+KiCad	Open source	Free
+LTSpice	Open source	Free
+Fusion 360	Open source	Free
+Arduino IDE/VS Code	Open source	Free
+GitHub	Open source	Free
+Discord/Teams	Open source	Free
+Table 9: Software BOMs
+Infrastructure Budget
+A list of the resources and equipment that will be used during the duration of the project. 
+Resource/Equipment	Usage
+Sci ‘65 Lab	Sci ‘65 lab for hardware testing (for example: soldering stations, oscilloscopes, logic analyzers, specialized equipment (e.g., VNA, optical table, power supply, electronic load. 
+3D Printing and Filament 	Will be using SLA (Stereolithography) for 3d printing. 3D printing Filament that will be used will be PETG
+JLCPCB (Undecided)	Used for PCB Manufacturing and Assembly needs, cost tentative ($100 CAD+ is the approximation including design and shipping). 
+Table 10: Resources and Equipment
+Supervisor Provided Resources
+The supervisor of the project will be providing the team with a polarization camera to be used for data collection for the project. 
+5. Risk Mitigation, Environmental Impact, and Legal Considerations 
+5.1 Health and Safety Risks
+There is an obvious health and safety risk of having electrical components submerged in water as per the plan of this project. The main worry is the possibility of an electrical short circuit in our controlled tank environment, which puts an immense risk in harming expensive equipment and putting team members at risk of an electric shock.
+We have multiple layers of risk mitigation. A 3D-printed waterproof enclosure will be used to seal all electrical components; this includes the polarization camera and the custom PCB. To ensure the enclosure meets standards in an aquatic environment, it will undergo independent submersion tests prior to any electronic installation. Second, a SHT31-D humidity sensor, installed in the PCB, will be used an active leak detector. In the case of a significant rise in humidity this will be detected as a leak, the system then can be shut down before catastrophic failure occurs. Lastly, the team plans to use Ground-Fault Interrupter outlets and keep any external power supplied far away from the water. All tests will be conducted in a controlled laboratory setting.
+5.2 Environmental Impact
+The overall environmental impact of this project is negligible. The university's '65 Makerspace lab will be used for all fabrication, including 3D printing the enclosure. It is planned to use recyclable filaments when applicable and any leftover plastic will be disposed in a sustainable manner. 
+The long-term objective of this research is to develop a technology that is beneficial to the environment. Through success of this project, the underwater polarized compass can be used as a substation for sonar, which is known to disturb marine ecosystems.
+5.3 Legal Considerations
+There are no legal repercussions that are anticipated. This project entails the use of a passive optical sensor in a scholarly study. It does not use any regulated frequencies for transmission, and the information it does gather does not include any private data.
+6. Progress to Date
+At this stage, the project is in the early phases of development, with foundational work underway across research, design, and implementation. The team has completed an extensive literature review on polarization-based navigation and underwater optical modeling, which has informed the overall system architecture and component selection.
+The electrical and mechanical design phases have been initiated. Preliminary circuit schematics are being developed in KiCad, and key hardware components such as the ESP32 microcontroller, MS5837 pressure sensor, and SHT31-D humidity sensor have been sourced for integration. LTSpice validation and enclosure modeling in Fusion 360 have not yet been performed but are planned for the next milestone.
+On the software side, the data preprocessing pipeline has been started, establishing the structure for importing and standardizing polarization image data. Initial testing has begun to compare three machine-learning models: Linear Regression, Support Vector Regression (RBF), and Random Forest Regression to determine suitable baselines for eventual training. The validation framework and cross-validation structure are in progress but not yet implemented.
+From a project management standpoint, the methodology, milestone structure, and risk mitigation plans have been formalized. Weekly meetings are ongoing to coordinate hardware, simulation, and software progress. While no subsystem is fully validated yet, the team is on track to begin circuit testing and enclosure design by late November and to transition into the data collection and model training stages in January.
+7. Conclusion 
+Up to this point, the team has made decent progress in completing both the research and preliminary design phases on the Bio-Inspired Polarization Compass project. Previous research/literature has been completed to assist in understanding the concept of polarization, existing polarization-based navigation systems, and the current challenges in navigating underwater. IEEE Xplore papers assisted the team in gaining an understanding of the concepts and relationship between Angle of Polarization (AoLP) and Degree of Linear Polarization (DoLP), and solar azimuth estimation accuracy. With the research, the team was able to conclude what regression approach would be viable for this project to achieve the required azimuth prediction, which is the foundation of the machine learning aspect of the project.
+On the hardware side, all the parts needed for the PCB have been selected; PCB design research will continue past this current milestone. After PCB research is completed, the circuit will be tested in LTspice, and a schematic will be completed by the next milestone set by the team. Furthermore, by the next milestone, work on the design of the waterproof enclosure will be done, and then the CAD work will begin. 
+From a scheduling standpoint, the project is on track. Milestone 1, the system design phase is completed, and as mentioned above, the team is on track for milestone 2, where the PCB circuit is built and tested virtually, and the design of the enclosure is completed.
+
+ 
+References
+
+[1] 	G. Taraldsen, T. A. Reinen and T. Berg, "The underwater GPS problem," IEEE Xplore. 
+[2] 	D. Agarwal, B. Potter, J. Y. Siddiqui, Y. M. M. Antar and M. Z. Alam, "Bio-Inspired Polarization Compass for Solar Azimuth Prediction Under Clear and Cloudy Sky Conditions," IEEE Xplore. 
+[3] 	L. Paull, S. Saeedi, M. Seto and H. Li, "AUV Navigation and Localization: A Review," IEEE Xplore. 
+
+
+Appendix
+ Requirement / Spec 	Test Method 	Measurement / Metric 	Target Value 	Responsible Member(s) 
+Breadboard Prototyping
+
+	
+Upload sketch to ESP32, verify One-Wire sensors, test SPI SD card logging
+	 Successful sensor detection, log read/write test	100% of sensors detected; 100% log read/write success	 Moaz,
+Sean
+ Buck Converter Stability	 Continuous logging test in mock environment 	 Output ripple voltage (Vpp)	 ≤ 50 mVpp; stable voltage ±0.05 V	 Moaz
+ Enclosure Integrity Validation	 0.9 m immersion for 2 h with desiccant pack and humidity sensor	 ΔRH inside enclosure and presence of moisture	 
+ΔRH ≤ 2%; no visible moisture
+
+	 Saad,
+Matthew
+PCB Bring-Up Validation	Visual and continuity inspection, sequential jumper activation and sensor testing	No GND-VIN shorts; current draw <100 mA idle; all sensors provide valid readings	All tests pass; no short detected	Moaz
+Integrated System Validation (Dry/Wet Test)	Synchronize IMU and camera timestamps, 1.5 h water test	Timestamp offset Δt; humidity sensor data	Δt ≤ 0.5 s; humidity <5% rise	Saad
+Cross-Validation Accuracy	5-fold cross-validation on 20k dataset	Mean Absolute Error (MAE), Root Mean Squared Error (RMSE)	MAE < 5°, RMSE ≤ 10%	Sean,
+Saad
+Sensitivity & Reproducibility Test	Retrain 10× with unique seeds, modulate DoLP/AoLP ±2%	MAE variance (%); RMAE variance (%)	≤ 10% deviation between runs	Matthew 
+Environmental Robustness Validation	Gaussian and  Poisson noise, haze overlay (0.1–0.3 optical density)	MAE, RMSE under noise	MAE ≤ 5°, RMSE ≤ 10%	Sean, Matthew
+Table 11:Table reviewing testing and validation stages outlined in section 2.3
+
+

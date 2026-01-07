@@ -1,1 +1,45 @@
 mosaic_test_preprocessing_database/
+rosbag2_2025_11_24-10_37_35/
+24-10-08-t000-forward-paradesquare/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# ML Models & Data
+*.pkl
+*.joblib
+*.npy
+*.h5
+model_weights/
+L2_results/*.pkl
+SVR_results/*.pkl
+RF_results/*.pkl
+
+# Generated Results
+model_comparison_results/
+phase1_results/
+training_logs/
+
+# Large Data Files
+*.mat
+data/
+datasets/
+large_data/
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
