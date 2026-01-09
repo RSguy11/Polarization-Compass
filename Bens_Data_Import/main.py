@@ -17,7 +17,7 @@ def main():
     print("Hello from read-bag!")
 
     bagpath = Path(args.path)
-    # print_topics(bagpath)
+    print_topics(bagpath)
     extract_images(bagpath)
 
 

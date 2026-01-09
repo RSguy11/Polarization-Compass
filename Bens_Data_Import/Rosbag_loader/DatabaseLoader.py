@@ -2,13 +2,14 @@ import numpy as np
 from pathlib import Path
 from rosbags.highlevel import AnyReader
 from rosbags.typesys import Stores, get_typestore
+import sqlite3
 
 # Topics
 CAM_TOPIC = "/camera_driver_gv/vis/image_raw"
 REF_TOPIC = "/novatel/oem7/inspva"
 
 class DatabaseLoader():
-    def __init__( self, data_path:Path, start_deg = 0.0, step_deg = 1.0 ):
+    def __init__( self, data_path:Path, start_deg = 0.0, step_deg = 1.0, skip_corrupted=True ):
 
         self.bag_path = Path(data_path)
 
@@ -16,16 +17,30 @@ class DatabaseLoader():
 
         self.step_deg = step_deg
         self.start_deg = start_deg
+        self.skip_corrupted = skip_corrupted
+        self.skipped_count = 0
 
     def dataReader(self):
-         with AnyReader([self.bag_path], default_typestore=self.typestore) as reader:
-                connections = [x for x in reader.connections if x.topic == CAM_TOPIC]
+         try:
+             with AnyReader([self.bag_path], default_typestore=self.typestore) as reader:
+                    connections = [x for x in reader.connections if x.topic == CAM_TOPIC]
 
-                for connection, timestamp, rawdata in reader.messages(connections=connections):
-                    msg = reader.deserialize(rawdata, connection.msgtype)
-                    yield msg, timestamp
+                    for connection, timestamp, rawdata in reader.messages(connections=connections):
+                        try:
+                            msg = reader.deserialize(rawdata, connection.msgtype)
+                            yield msg, timestamp
+                        except (sqlite3.DatabaseError, Exception) as e:
+                            if self.skip_corrupted:
+                                self.skipped_count += 1
+                                print(f"Warning: Skipped corrupted message (total skipped: {self.skipped_count})")
+                                continue
+                            else:
+                                raise
 
-                # msg.data = raw pixels
+                    # msg.data = raw pixels
+         except sqlite3.DatabaseError as e:
+             print(f"Database error encountered: {e}")
+             print(f"Successfully read messages before corruption. Total skipped: {self.skipped_count}")
 
     def extract_features(self, msg):
 
