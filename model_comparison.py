@@ -28,6 +28,10 @@ from L2_Linear_reg.L2_pipeline import create_baseline_model
 from SVR_reg.SVR_pipeline import create_svr_model
 from Random_Forest_reg.Random_Forest_pipeline import create_random_forest_model
 
+# Import Ben's PNG data loader
+from Bens_Data_Import.Image_data_loader.PNGDatabaseLoader import PNGDatabaseLoader
+from pathlib import Path
+
 
 class ModelComparison:
     """
@@ -56,66 +60,49 @@ class ModelComparison:
         print(f"Model Comparison Suite initialized")
         print(f"Results will be saved to: {output_dir}")
     
-    def create_test_dataset(self, n_samples: int = 1000) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def load_real_polarization_data(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
-        Create a test dataset for model comparison.
+        Load Ben's real PNG polarization dataset.
         
-        Args:
-            n_samples: Number of samples to generate
-            
         Returns:
-            Tuple of (DoLP, AoLP, azimuth_labels)
+            Tuple of (features, labels, timestamps) from real polarization images
         """
-        print(f"Creating test dataset with {n_samples} samples...")
+        print("Loading real polarization data from Ben's PNG dataset...")
         
-        # Set seed for reproducibility
-        np.random.seed(42)
+        # Path to Ben's PNG dataset
+        png_data_path = Path("C:/Queens/ELEC498/Ben's Data/24-10-08-t000-forward-paradesquare/24-10-08-t000-forward-paradesquare")
         
-        # Image dimensions
-        h, w = 32, 32
+        # Initialize PNG database loader
+        loader = PNGDatabaseLoader(png_data_path, start_deg=0.0, step_deg=1.0)
         
-        # Create realistic DoLP data
-        dolp_data = np.random.beta(2, 5, (n_samples, h, w)).astype(np.float32)
+        # Load all data
+        X, y, timestamps = loader.get_item()  # X = [DoLP, sin(AoLP), cos(AoLP)], y = azimuth (rad)
         
-        # Add spatial structure
-        for i in range(n_samples):
-            x, y = np.meshgrid(np.linspace(-1, 1, w), np.linspace(-1, 1, h))
-            radial = np.sqrt(x**2 + y**2)
-            spatial_modulation = 0.2 * np.exp(-radial**2)
-            dolp_data[i] += spatial_modulation
-            dolp_data[i] = np.clip(dolp_data[i], 0, 1)
+        # Convert features to the format expected by models (DoLP and AoLP images)
+        n_samples = X.shape[0]
+        h, w = 32, 32  # Reduced size for processing speed
         
-        # Create AoLP data with gradients
+        # Create DoLP and AoLP arrays from scalar features
+        dolp_data = np.zeros((n_samples, h, w), dtype=np.float32)
         aolp_data = np.zeros((n_samples, h, w), dtype=np.float32)
         
         for i in range(n_samples):
-            base_angle = np.random.uniform(0, 180)
-            x, y = np.meshgrid(np.linspace(-1, 1, w), np.linspace(-1, 1, h))
-            gradient = 15 * np.arctan2(y, x) * 180 / np.pi
+            # Fill with scalar values (could be enhanced to use spatial features)
+            dolp_data[i] = X[i, 0]  # DoLP scalar
             
-            aolp_data[i] = (base_angle + gradient + np.random.normal(0, 3, (h, w))) % 180
-            aolp_data[i] = np.clip(aolp_data[i], 0, 180)
+            # Reconstruct AoLP from sin/cos components
+            aolp_rad = np.arctan2(X[i, 1], X[i, 2])  # sin, cos -> angle
+            aolp_deg = np.rad2deg(aolp_rad) % 180  # Convert to 0-180° range
+            aolp_data[i] = aolp_deg
         
-        # Create azimuth labels with some correlation
-        azimuth_labels = np.zeros(n_samples, dtype=np.float32)
+        # Convert azimuth labels from radians to degrees
+        azimuth_labels = np.rad2deg(y) % 360
         
-        for i in range(n_samples):
-            # Base from time progression
-            base_azimuth = (i / n_samples) * 360
-            
-            # Add correlation with polarization
-            avg_dolp = np.mean(dolp_data[i])
-            avg_aolp = np.mean(aolp_data[i])
-            
-            correlation = 50 * avg_dolp * np.sin(np.deg2rad(2 * avg_aolp))
-            noise = np.random.normal(0, 8)  # 8 degree noise
-            
-            azimuth_labels[i] = (base_azimuth + correlation + noise) % 360
-        
-        print(f"✓ Test dataset created:")
-        print(f"  DoLP: {dolp_data.shape}, range [{dolp_data.min():.3f}, {dolp_data.max():.3f}]")
-        print(f"  AoLP: {aolp_data.shape}, range [{aolp_data.min():.1f}°, {aolp_data.max():.1f}°]")
-        print(f"  Azimuth: {azimuth_labels.shape}, range [{azimuth_labels.min():.1f}°, {azimuth_labels.max():.1f}°]")
+        print(f"✓ Real polarization dataset loaded:")
+        print(f"  Samples: {n_samples}")
+        print(f"  DoLP range: [{dolp_data.min():.3f}, {dolp_data.max():.3f}]")
+        print(f"  AoLP range: [{aolp_data.min():.1f}°, {aolp_data.max():.1f}°]")
+        print(f"  Azimuth range: [{azimuth_labels.min():.1f}°, {azimuth_labels.max():.1f}°]")
         
         return dolp_data, aolp_data, azimuth_labels
     
@@ -173,23 +160,22 @@ class ModelComparison:
         
         return results
     
-    def compare_all_models(self, n_samples: int = 500) -> Dict:
+    def compare_all_models(self) -> Dict:
         """
-        Compare all three models on identical dataset.
+        Compare all three models using Ben's real PNG polarization dataset.
         
-        Args:
-            n_samples: Number of samples for comparison
-            
         Returns:
             Complete comparison results
         """
         print("POLARIZATION COMPASS - MODEL COMPARISON")
         print("=" * 50)
         print(f"Comparing L2, SVR, and Random Forest models")
-        print(f"Dataset size: {n_samples} samples")
+        print("Using REAL polarization data from Ben's PNG dataset")
         
-        # Create test dataset
-        dolp, aolp, azimuth = self.create_test_dataset(n_samples)
+        # Load real dataset
+        dolp, aolp, azimuth = self.load_real_polarization_data()
+        
+        print(f"Dataset size: {len(dolp)} samples")
         
         # Initialize models
         models = {
@@ -284,15 +270,43 @@ class ModelComparison:
         with open(json_path, 'w') as f:
             # Convert numpy types for JSON serialization
             def convert_types(obj):
-                if isinstance(obj, np.integer):
+                if isinstance(obj, (np.integer, np.int64, np.int32)):
                     return int(obj)
-                elif isinstance(obj, np.floating):
+                elif isinstance(obj, (np.floating, np.float64, np.float32)):
                     return float(obj)
                 elif isinstance(obj, np.ndarray):
                     return obj.tolist()
+                elif isinstance(obj, np.bool_):
+                    return bool(obj)
+                elif isinstance(obj, pd.Series):
+                    return obj.tolist()
+                elif hasattr(obj, 'item'):  # numpy scalar
+                    return obj.item()
                 return obj
             
-            json.dump(self.results, f, indent=2, default=convert_types)
+            # Create a copy of results without circular references
+            results_copy = {}
+            for key, value in self.results.items():
+                if key == 'models':
+                    models_copy = {}
+                    for model_name, model_results in value.items():
+                        if isinstance(model_results, dict) and model_results.get('evaluation_success', False):
+                            # Only keep serializable data
+                            models_copy[model_name] = {
+                                'model_name': model_results['model_name'],
+                                'cv_metrics': model_results.get('cv_metrics', {}),
+                                'meets_mae_requirement': bool(model_results.get('meets_mae_requirement', False)),
+                                'meets_rmse_requirement': bool(model_results.get('meets_rmse_requirement', False)),
+                                'meets_blueprint_requirements': bool(model_results.get('meets_blueprint_requirements', False)),
+                                'evaluation_success': bool(model_results.get('evaluation_success', False))
+                            }
+                        else:
+                            models_copy[model_name] = model_results
+                    results_copy[key] = models_copy
+                else:
+                    results_copy[key] = value
+            
+            json.dump(results_copy, f, indent=2, default=convert_types)
         
         print(f"\\n💾 Results saved to {json_path}")
         
@@ -311,7 +325,7 @@ class ModelComparison:
         
         report_path = os.path.join(self.output_dir, 'comparison_report.txt')
         
-        with open(report_path, 'w') as f:
+        with open(report_path, 'w', encoding='utf-8') as f:
             f.write("POLARIZATION COMPASS - MODEL COMPARISON REPORT\\n")
             f.write("=" * 60 + "\\n\\n")
             f.write(f"Comparison completed: {self.results['comparison_timestamp']}\\n\\n")
@@ -359,16 +373,18 @@ def main():
     # Create comparison suite
     comparison = ModelComparison(output_dir="model_comparison_results")
     
-    # Run comparison with manageable dataset size
-    results = comparison.compare_all_models(n_samples=300)
+    # Run comparison with real polarization data
+    results = comparison.compare_all_models()
     
     print(f"\\n🎯 MODEL COMPARISON COMPLETE!")
     print(f"📂 Check 'model_comparison_results/' for detailed results")
     print(f"\\n🚀 NEXT STEPS:")
-    print("1. Connect real polarization data from your preprocessing pipeline")
-    print("2. Add actual solar azimuth labels using the solar_azimuth_generator.py")
-    print("3. Re-run comparison with real data to see which model performs best")
-    print("4. Use the best performing model for your underwater polarization compass")
+    print("1. ✅ Using REAL polarization data from Ben's PNG dataset")
+    print("2. Analyze model performance on actual underwater polarization patterns")
+    print("3. Use the best performing model for your underwater polarization compass")
+    print("4. Prepare for upcoming underwater data collection (Jan 19)")
+    
+    return results
 
 
 if __name__ == "__main__":
