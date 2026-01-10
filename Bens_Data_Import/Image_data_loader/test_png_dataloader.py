@@ -2,8 +2,8 @@ import numpy as np
 from PNGDatabaseLoader import PNGDatabaseLoader
 from pathlib import Path
 
-# Path to the PNG dataset (relative to Bens_Data_Import)
-BAG_PATH = Path(__file__).parent.parent / "24-10-08-t000-forward-paradesquare"
+# Path to the PNG dataset (Ben's Data folder)
+BAG_PATH = Path("C:/Queens/ELEC498/Ben's Data/24-10-08-t000-forward-paradesquare/24-10-08-t000-forward-paradesquare")
 
 def main():
     print("Initializing PNGDatabaseLoader...")

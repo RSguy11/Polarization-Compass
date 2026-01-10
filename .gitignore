@@ -41,5 +41,6 @@ large_data/
 
 # OS
 .DS_Store
-Thumbs.db
-*.tmp
+Thumbs.mosaic_test_preprocessing_database
+
+venv/
