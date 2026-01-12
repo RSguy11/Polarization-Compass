@@ -154,9 +154,13 @@ class RandomForestPolarizationRegressor:
         # Calculate training metrics
         y_pred = self.regressor.predict(X)
         
+        # Convert errors from radians to degrees  
+        mae_rad = mean_absolute_error(azimuth, y_pred)
+        rmse_rad = np.sqrt(mean_squared_error(azimuth, y_pred))
+        
         metrics = {
-            'mae': mean_absolute_error(azimuth, y_pred),
-            'rmse': np.sqrt(mean_squared_error(azimuth, y_pred)),
+            'mae': np.rad2deg(mae_rad),
+            'rmse': np.rad2deg(rmse_rad),
             'r2': self.regressor.score(X, azimuth),
             'n_samples': len(azimuth),
             'n_features': X.shape[1],
@@ -268,9 +272,9 @@ class RandomForestPolarizationRegressor:
             temp_regressor.fit(X_train_scaled, y_train)
             y_pred = temp_regressor.predict(X_val_scaled)
             
-            # Calculate metrics
-            mae = mean_absolute_error(y_val, y_pred)
-            rmse = np.sqrt(mean_squared_error(y_val, y_pred))
+            # Calculate metrics (convert from radians to degrees)
+            mae = np.rad2deg(mean_absolute_error(y_val, y_pred))
+            rmse = np.rad2deg(np.sqrt(mean_squared_error(y_val, y_pred)))
             r2 = temp_regressor.score(X_val_scaled, y_val)
             
             mae_scores.append(mae)

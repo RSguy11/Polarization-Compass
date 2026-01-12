@@ -26,7 +26,7 @@ warnings.filterwarnings('ignore')
 # Add parent directory to path to import from other modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from L2_Linear_reg.L2_pipeline import L2PolarizationRegressor, create_baseline_model
+from Models.L2_Linear_reg.L2_pipeline import L2PolarizationRegressor, create_baseline_model
 
 
 class L2TrainingLoop:

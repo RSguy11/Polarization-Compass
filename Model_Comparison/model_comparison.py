@@ -22,11 +22,13 @@ from typing import Dict, List, Tuple
 import warnings
 warnings.filterwarnings('ignore')
 
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # Import all model pipelines
-sys.path.append('.')
-from L2_Linear_reg.L2_pipeline import create_baseline_model
-from SVR_reg.SVR_pipeline import create_svr_model
-from Random_Forest_reg.Random_Forest_pipeline import create_random_forest_model
+from Models.L2_Linear_reg.L2_pipeline import create_baseline_model
+from Models.SVR_reg.SVR_pipeline import create_svr_model
+from Models.Random_Forest_reg.Random_Forest_pipeline import create_random_forest_model
 
 # Import Ben's spatial PNG data loader  
 from Bens_Data_Import.Image_data_loaders.Spatial_Gradient_Loader.SpatialPolarizationLoader import SpatialPolarizationLoader
