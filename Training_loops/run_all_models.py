@@ -41,18 +41,18 @@ def create_training_plots(results, training_history, output_dir):
     # Extract metrics for plotting
     model_names = []
     train_mae = []
-    cv_mae = []
-    cv_rmse = []
+    best_val_mae = []
+    best_val_rmse = []
     
     for name, result in results.items():
         if 'error' not in result:
             model_names.append(name)
             train_mae.append(result['training_mae'])
-            cv_mae.append(result['cv_mae'])
-            cv_rmse.append(result['cv_rmse'])
+            best_val_mae.append(result['best_val_mae'])
+            best_val_rmse.append(result['best_val_rmse'])
     
     if not model_names:
-        print("⚠️  No successful results to plot")
+        print(" No successful results to plot")
         return
     
     # Create figure with GridSpec layout for better spacing
@@ -70,6 +70,11 @@ def create_training_plots(results, training_history, output_dir):
                         'o-', label=f'{model_name} (Train)', linewidth=2, markersize=6)
                 ax1.plot(history['sample_sizes'], history['val_errors'], 
                         's--', label=f'{model_name} (Val)', linewidth=2, markersize=6, alpha=0.7)
+                # Mark best validation checkpoint
+                best_idx = history['sample_sizes'].index(history['best_sample_size'])
+                ax1.plot(history['best_sample_size'], history['val_errors'][best_idx], 
+                        '*', markersize=20, color='gold', markeredgecolor='black', 
+                        markeredgewidth=1.5, zorder=10)
         
         ax1.axhline(y=5.0, color='green', linestyle='--', linewidth=2, label='Target (5° MAE)', alpha=0.7)
         ax1.set_xlabel('Training Set Size', fontsize=12, fontweight='bold')
@@ -88,25 +93,25 @@ def create_training_plots(results, training_history, output_dir):
     ax3 = fig.add_subplot(gs[0, 2])  # Top middle
     ax4 = fig.add_subplot(gs[0, 3])  # Top right
     
-    # MAE
-    ax2.bar(range(len(model_names)), cv_mae, color='#3498db', alpha=0.8, edgecolor='black')
+    # MAE (Best Validation)
+    ax2.bar(range(len(model_names)), best_val_mae, color='#3498db', alpha=0.8, edgecolor='black')
     ax2.axhline(y=5.0, color='green', linestyle='--', linewidth=2, alpha=0.7)
     ax2.set_ylabel('MAE (degrees)', fontweight='bold', fontsize=10)
-    ax2.set_title('Mean Absolute Error', fontweight='bold', fontsize=11)
+    ax2.set_title('Best Validation MAE', fontweight='bold', fontsize=11)
     ax2.set_xticks(range(len(model_names)))
     ax2.set_xticklabels(model_names, rotation=15, ha='right', fontsize=9)
     ax2.grid(axis='y', alpha=0.3)
-    for i, v in enumerate(cv_mae):
+    for i, v in enumerate(best_val_mae):
         ax2.text(i, v, f'{v:.1f}°', ha='center', va='bottom', fontsize=8)
     
-    # RMSE
-    ax3.bar(range(len(model_names)), cv_rmse, color='#e74c3c', alpha=0.8, edgecolor='black')
+    # RMSE (Best Validation)
+    ax3.bar(range(len(model_names)), best_val_rmse, color='#e74c3c', alpha=0.8, edgecolor='black')
     ax3.set_ylabel('RMSE (degrees)', fontweight='bold', fontsize=10)
-    ax3.set_title('Root Mean Square Error', fontweight='bold', fontsize=11)
+    ax3.set_title('Best Validation RMSE', fontweight='bold', fontsize=11)
     ax3.set_xticks(range(len(model_names)))
     ax3.set_xticklabels(model_names, rotation=15, ha='right', fontsize=9)
     ax3.grid(axis='y', alpha=0.3)
-    for i, v in enumerate(cv_rmse):
+    for i, v in enumerate(best_val_rmse):
         ax3.text(i, v, f'{v:.1f}°', ha='center', va='bottom', fontsize=8)
     
     # Requirements Met
@@ -128,33 +133,6 @@ def create_training_plots(results, training_history, output_dir):
     print(f"✓ Saved training dashboard")
     
     print(f"\n📊 All plots saved to: {output_dir}")
-    """
-    Create comprehensive training visualization plots.
-    
-    Args:
-        results: Dictionary containing model training results
-        output_dir: Directory to save plots
-    """
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Extract metrics for plotting
-    model_names = []
-    train_mae = []
-    cv_mae = []
-    cv_rmse = []
-    
-    for name, result in results.items():
-        if 'error' not in result:
-            model_names.append(name)
-            train_mae.append(result['training_mae'])
-            cv_mae.append(result['cv_mae'])
-            cv_rmse.append(result['cv_rmse'])
-    
-    if not model_names:
-        print("⚠️  No successful results to plot")
-        return
-    
-
 
 
 def run_complete_pipeline():
@@ -208,6 +186,9 @@ def run_complete_pipeline():
     
     print(f"✓ Split data: {train_size} training, {test_size} test samples\n")
     
+    # Create timestamp for saving models and results
+    today = datetime.now().strftime('%Y-%m-%d')
+    
     results = {}
     training_history = {}
     
@@ -246,6 +227,12 @@ def run_complete_pipeline():
             train_errors = []
             val_errors = []
             
+            # Track best validation model
+            best_val_error = float('inf')
+            best_val_rmse = float('inf')
+            best_model = None
+            best_sample_size = 0
+            
             for size in sample_sizes:
                 # Create fresh model for each iteration
                 model_temp = create_baseline_model(alpha=1.0) if 'L2' in model_name else create_random_forest_model(
@@ -269,17 +256,31 @@ def run_complete_pipeline():
                         dolp_train[subset_train_size:size], 
                         aolp_train[subset_train_size:size]
                     )
-                    val_error = np.mean(np.abs(val_pred - azimuth_train[subset_train_size:size]))
+                    val_error = np.rad2deg(np.mean(np.abs(val_pred - azimuth_train[subset_train_size:size])))
+                    val_rmse = np.rad2deg(np.sqrt(np.mean((val_pred - azimuth_train[subset_train_size:size])**2)))
                 else:
                     val_error = train_metrics_temp['mae']
+                    val_rmse = train_metrics_temp['rmse']
                 
                 train_errors.append(train_metrics_temp['mae'])
                 val_errors.append(val_error)
+                
+                # Track best validation performance
+                if val_error < best_val_error:
+                    best_val_error = val_error
+                    best_val_rmse = val_rmse
+                    best_model = model_temp  # Save reference to best model
+                    best_sample_size = size
+            
+            print(f"  Best validation MAE: {best_val_error:.3f}° at {best_sample_size} samples")
             
             training_history[model_name] = {
                 'sample_sizes': sample_sizes,
                 'train_errors': train_errors,
-                'val_errors': val_errors
+                'val_errors': val_errors,
+                'best_val_error': best_val_error,
+                'best_val_rmse': best_val_rmse,
+                'best_sample_size': best_sample_size
             }
             
             # Train final model on all training data
@@ -297,6 +298,9 @@ def run_complete_pipeline():
                 'training_mae': float(train_metrics['mae']),
                 'cv_mae': float(cv_metrics['mae_mean']),
                 'cv_rmse': float(cv_metrics['rmse_mean']),
+                'best_val_mae': float(best_val_error),
+                'best_val_rmse': float(best_val_rmse),
+                'best_val_samples': int(best_sample_size),
                 'test_mae': float(test_mae),
                 'test_rmse': float(test_rmse),
                 'meets_requirements': bool(test_mae < 5.0)
@@ -306,6 +310,21 @@ def run_complete_pipeline():
             print(f"  Train MAE: {train_metrics['mae']:.3f}°")
             print(f"  CV MAE: {cv_metrics['mae_mean']:.3f}°")
             print(f"  Test MAE: {test_mae:.3f}° (held-out)")
+            
+            # Save two versions: final model and best validation model
+            model_dir = os.path.join('saved_models', today)
+            os.makedirs(model_dir, exist_ok=True)
+            
+            # Save final model (trained on all data)
+            model_path = os.path.join(model_dir, f'{model_name}_final.pkl')
+            model.save_model(model_path)
+            print(f"  Final model saved: {model_path}")
+            
+            # Save best validation model (early stopping checkpoint)
+            if best_model is not None:
+                best_model_path = os.path.join(model_dir, f'{model_name}_best_val.pkl')
+                best_model.save_model(best_model_path)
+                print(f"  Best validation model saved: {best_model_path} (MAE: {best_val_error:.3f}° at {best_sample_size} samples)")
             
         except Exception as e:
             print(f"❌ {model_name} failed: {str(e)}")

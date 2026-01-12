@@ -1,0 +1,24 @@
+{
+  "L2_Baseline": {
+    "training_mae": 26.7951787460604,
+    "cv_mae": 28.291037302598465,
+    "cv_rmse": 35.0071048166681,
+    "best_val_mae": 25.97032928466797,
+    "best_val_rmse": 31.600950241088867,
+    "best_val_samples": 250,
+    "test_mae": 25.151933670043945,
+    "test_rmse": 32.937904357910156,
+    "meets_requirements": false
+  },
+  "Random_Forest": {
+    "training_mae": 5.904227048265535,
+    "cv_mae": 10.292938322104506,
+    "cv_rmse": 16.445822550344058,
+    "best_val_mae": 5.717830056397031,
+    "best_val_rmse": 7.490905706307409,
+    "best_val_samples": 250,
+    "test_mae": 7.384412197591246,
+    "test_rmse": 10.22538328311053,
+    "meets_requirements": false
+  }
+}

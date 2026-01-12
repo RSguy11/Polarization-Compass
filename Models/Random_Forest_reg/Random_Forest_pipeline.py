@@ -432,13 +432,17 @@ class RandomForestPolarizationRegressor:
 
 
 def create_random_forest_model(n_estimators: int = 100, 
-                             max_depth: Optional[int] = None) -> RandomForestPolarizationRegressor:
+                             max_depth: Optional[int] = None,
+                             min_samples_split: int = 2,
+                             min_samples_leaf: int = 1) -> RandomForestPolarizationRegressor:
     """
     Create the Random Forest model as specified in the blueprint.
     
     Args:
         n_estimators: Number of trees in the forest
         max_depth: Maximum depth of trees (None for unlimited)
+        min_samples_split: Minimum samples required to split a node
+        min_samples_leaf: Minimum samples required at a leaf node
         
     Returns:
         Configured RandomForestPolarizationRegressor instance
@@ -446,8 +450,8 @@ def create_random_forest_model(n_estimators: int = 100,
     return RandomForestPolarizationRegressor(
         n_estimators=n_estimators,
         max_depth=max_depth,
-        min_samples_split=2,
-        min_samples_leaf=1,
+        min_samples_split=min_samples_split,
+        min_samples_leaf=min_samples_leaf,
         max_features='sqrt',  # Square root of features (good default)
         bootstrap=True,
         random_state=42  # For reproducibility per blueprint
