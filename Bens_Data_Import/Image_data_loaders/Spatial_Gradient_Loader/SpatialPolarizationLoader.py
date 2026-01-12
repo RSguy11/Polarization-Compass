@@ -6,21 +6,11 @@ import cv2
 from typing import Tuple, Optional
 
 class SpatialPolarizationLoader:
-    """
-    Enhanced polarization data loader that preserves spatial information
-    from full resolution images instead of reducing to scalar averages.
-    """
+    # Enhanced polarization data loader that preserves spatial information
+    # from full resolution images instead of reducing to scalar averages.
     
-    def __init__(self, data_path: Path, start_deg=0.0, step_deg=1.0, target_size: Tuple[int, int] = (128, 128)):
-        """
-        Initialize the spatial polarization data loader.
-        
-        Args:
-            data_path: Path to directory containing PNG polarization images
-            start_deg: Starting azimuth angle in degrees
-            step_deg: Step size between consecutive images in degrees  
-            target_size: Target size (H, W) for downsampled images for efficiency
-        """
+    #Target_Size = Resolution/Compressed AolP and DOLP representation
+    def __init__(self, data_path: Path, start_deg=0.0, step_deg=1.0, target_size: Tuple[int, int] = (256, 256)):
         self.data_path = Path(data_path)
         self.target_size = target_size
         
@@ -38,24 +28,15 @@ class SpatialPolarizationLoader:
         
         print(f"Found {len(self.image_files)} polarization images")
         print(f"Target processing size: {target_size}")
+
     
     def _extract_angle(self, filename: str) -> int:
-        """Extract angle number from filename."""
         match = re.search(r'angle_(\d+)', filename)
         if match:
             return int(match.group(1))
         return 0
     
     def load_and_process_image(self, img_path: Path) -> Tuple[np.ndarray, np.ndarray]:
-        """
-        Load a single polarization image and extract spatial DoLP and AoLP patterns.
-        
-        Args:
-            img_path: Path to the polarization image
-            
-        Returns:
-            Tuple of (DoLP_spatial, AoLP_spatial) arrays preserving spatial structure
-        """
         # Load the image
         img = Image.open(img_path)
         img_array = np.array(img, dtype=np.float32)
@@ -63,25 +44,17 @@ class SpatialPolarizationLoader:
         # Handle different image formats
         if len(img_array.shape) == 3:
             # RGB image - convert to grayscale or use specific channel
+            # Gives Us one intensity Value over three 
             img_array = np.mean(img_array, axis=2)
         
         H, W = img_array.shape
         
-        # For polarization images, we need to extract the polarization information
-        # This assumes the PNG contains processed polarization data
-        # If it's raw 4-channel mosaic data, we'd need different processing
+        # The rest Assumes proccessed polerization images
         
-        # Normalize to 0-1 range
+        # Normalize to 0-1 range.
         img_normalized = img_array / 255.0 if img_array.max() > 1.0 else img_array
         
-        # For now, treat the image as intensity and compute basic polarization features
-        # In a real implementation, this would depend on the specific format of Ben's images
-        
-        # Simple spatial feature extraction - this would be replaced with actual
-        # polarization computation if we had access to the raw 4-channel data
-        
-        # Create spatial gradients that could represent polarization patterns
-        # Horizontal and vertical gradients
+        # Create spatial gradients that could represent polarization patterns Horizontal and vertical gradients
         grad_x = cv2.Sobel(img_normalized, cv2.CV_64F, 1, 0, ksize=3)
         grad_y = cv2.Sobel(img_normalized, cv2.CV_64F, 0, 1, ksize=3)
         
@@ -102,23 +75,11 @@ class SpatialPolarizationLoader:
         return dolp_resized.astype(np.float32), aolp_resized.astype(np.float32)
     
     def extract_label(self, index: int) -> float:
-        """Extract azimuth label for given image index."""
+        #Extract azimuth label for given image index.
         azimuth_deg = self.start_deg + index * self.step_deg
         return np.deg2rad(azimuth_deg % 360)
     
     def get_spatial_data(self, max_samples: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Load all polarization images with spatial information preserved.
-        
-        Args:
-            max_samples: Maximum number of samples to load (None for all)
-            
-        Returns:
-            Tuple of (DoLP_spatial, AoLP_spatial, azimuth_labels)
-            DoLP_spatial: (N, H, W) array of spatial DoLP patterns
-            AoLP_spatial: (N, H, W) array of spatial AoLP patterns  
-            azimuth_labels: (N,) array of azimuth angles in radians
-        """
         n_files = len(self.image_files)
         if max_samples is not None:
             n_files = min(n_files, max_samples)
@@ -147,28 +108,24 @@ class SpatialPolarizationLoader:
                 aolp_data[i] = np.zeros(self.target_size, dtype=np.float32)
                 azimuth_labels[i] = self.extract_label(i)
         
-        print(f"✓ Spatial polarization dataset loaded:")
-        print(f"  Samples: {n_files}")
-        print(f"  Spatial size: {h}×{w}")
-        print(f"  DoLP spatial range: [{dolp_data.min():.3f}, {dolp_data.max():.3f}]")
-        print(f"  AoLP spatial range: [{aolp_data.min():.1f}°, {aolp_data.max():.1f}°]")
-        print(f"  Azimuth range: [{np.rad2deg(azimuth_labels.min()):.1f}°, {np.rad2deg(azimuth_labels.max()):.1f}°]")
+        print(f"Spatial polarization dataset loaded:")
+        print(f"Spatial size: {h}×{w}")
+
+        #Ensureing all values fall within an appropriate range
+        print(f"DoLP spatial range: [{dolp_data.min():.3f}, {dolp_data.max():.3f}]")
+        print(f"AoLP spatial range: [{aolp_data.min():.1f}°, {aolp_data.max():.1f}°]")
+        print(f"Azimuth range: [{np.rad2deg(azimuth_labels.min()):.1f}°, {np.rad2deg(azimuth_labels.max()):.1f}°]")
         
         return dolp_data, aolp_data, azimuth_labels
+        #Returns:
+            # Tuple of (DoLP_spatial, AoLP_spatial, azimuth_labels)
+            # DoLP_spatial: (N, H, W) array of spatial DoLP patterns
+            # AoLP_spatial: (N, H, W) array of spatial AoLP patterns  
+            # azimuth_labels: (N,) array of azimuth angles in radians
 
-    def create_feature_vectors(self, dolp_spatial: np.ndarray, aolp_spatial: np.ndarray, 
-                             method: str = 'flatten') -> np.ndarray:
-        """
-        Convert spatial polarization data to feature vectors for ML models.
-        
-        Args:
-            dolp_spatial: (N, H, W) spatial DoLP data
-            aolp_spatial: (N, H, W) spatial AoLP data
-            method: Feature extraction method ('flatten', 'stats', 'pca')
-            
-        Returns:
-            Feature matrix (N, features)
-        """
+    def create_feature_vectors(self, dolp_spatial: np.ndarray, aolp_spatial: np.ndarray, method: str = 'flatten') -> np.ndarray:
+        # method: Feature extraction method ('flatten', 'stats')
+
         n_samples, h, w = dolp_spatial.shape
         
         if method == 'flatten':
