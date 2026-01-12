@@ -28,24 +28,6 @@ One such challenge is navigation in underwater environments. This repository sto
 - **run_all_models.py**: Unified training pipeline for all models
 - **ml_data_integration.py**: Data pipeline integration utilities
 
-## Quick Start
-
-1. **Test Baseline Models:**
-   ```bash
-   python test_l2_implementation.py
-   python run_all_models.py
-   ```
-
-2. **Generate Solar Azimuth Labels:**
-   ```bash
-   python solar_azimuth_generator.py
-   ```
-
-3. **Run Model Comparison:**
-   ```bash
-   python model_comparison.py
-   ```
-
 ## Requirements
 
 Target performance (per project blueprint):
