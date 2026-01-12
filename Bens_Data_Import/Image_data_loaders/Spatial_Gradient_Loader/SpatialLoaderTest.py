@@ -2,7 +2,7 @@ import numpy as np
 from pathlib import Path
 import sys
 sys.path.append('..')
-from SpatialPolarizationLoader import SpatialPolarizationLoader
+from Bens_Data_Import.Image_data_loaders.Spatial_Gradient_Loader.SpatialPolarizationLoader import SpatialPolarizationLoader
 
 def test_spatial_loader():
     """Test the new spatial polarization loader."""

@@ -29,7 +29,7 @@ from SVR_reg.SVR_pipeline import create_svr_model
 from Random_Forest_reg.Random_Forest_pipeline import create_random_forest_model
 
 # Import Ben's spatial PNG data loader  
-from Bens_Data_Import.Image_data_loader.SpatialPolarizationLoader import SpatialPolarizationLoader
+from Bens_Data_Import.Image_data_loaders.Spatial_Gradient_Loader.SpatialPolarizationLoader import SpatialPolarizationLoader
 from pathlib import Path
 
 

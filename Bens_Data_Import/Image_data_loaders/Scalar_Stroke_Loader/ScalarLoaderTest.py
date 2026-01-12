@@ -1,13 +1,13 @@
 import numpy as np
-from PNGDatabaseLoader import PNGDatabaseLoader
+from Bens_Data_Import.Image_data_loaders.Scalar_Stroke_Loader.ScalarStrokeLoader import ScalarStrokeLoader
 from pathlib import Path
 
 # Path to the PNG dataset (Ben's Data folder)
 BAG_PATH = Path("C:/Queens/ELEC498/Ben's Data/24-10-08-t000-forward-paradesquare/24-10-08-t000-forward-paradesquare")
 
 def main():
-    print("Initializing PNGDatabaseLoader...")
-    loader = PNGDatabaseLoader(BAG_PATH, start_deg=0.0, step_deg=1.0)
+    print("Initializing ScalarStrokeLoader...")
+    loader = ScalarStrokeLoader(BAG_PATH, start_deg=0.0, step_deg=1.0)
 
     print("\nRunning sanity check (max_samples=5)...")
     X, y, t = loader.get_item(max_samples=10)
@@ -31,7 +31,7 @@ def main():
     assert np.all(np.abs(X[:,1]) <= 1.0), "sin(AoLP) out of range"
     assert np.all(np.abs(X[:,2]) <= 1.0), "cos(AoLP) out of range"
 
-    print("\n✅ PNGDatabaseLoader test PASSED")
+    print("\n✅ ScalarStrokeLoader test PASSED")
     
     # Test loading all data
     print("\n" + "="*50)
