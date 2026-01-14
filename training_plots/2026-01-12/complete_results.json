@@ -11,14 +11,14 @@
     "meets_requirements": false
   },
   "Random_Forest": {
-    "training_mae": 5.904227048265535,
-    "cv_mae": 10.292938322104506,
-    "cv_rmse": 16.445822550344058,
-    "best_val_mae": 5.717830056397031,
-    "best_val_rmse": 7.490905706307409,
+    "training_mae": 5.9042270482655335,
+    "cv_mae": 10.292938322104504,
+    "cv_rmse": 16.445822550344054,
+    "best_val_mae": 5.717830056397024,
+    "best_val_rmse": 7.490905706307405,
     "best_val_samples": 250,
-    "test_mae": 7.384412197591246,
-    "test_rmse": 10.22538328311053,
+    "test_mae": 7.384412197591248,
+    "test_rmse": 10.225383283110531,
     "meets_requirements": false
   }
 }

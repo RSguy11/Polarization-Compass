@@ -54,7 +54,7 @@ class SpatialPolarizationLoader:
         # Normalize to 0-1 range.
         img_normalized = img_array / 255.0 if img_array.max() > 1.0 else img_array
         
-        # Create spatial gradients that could represent polarization patterns Horizontal and vertical gradients
+        # Create spatial gdcv  radients that could represent polarization patterns Horizontal and vertical gradients
         grad_x = cv2.Sobel(img_normalized, cv2.CV_64F, 1, 0, ksize=3)
         grad_y = cv2.Sobel(img_normalized, cv2.CV_64F, 0, 1, ksize=3)
         

@@ -353,12 +353,19 @@ class RandomForestPolarizationRegressor:
             )
         
         else:  # Grid search
+            # param_grid = {
+            #     'n_estimators': [50, 100, 200],
+            #     'max_depth': [None, 20, 30],
+            #     'min_samples_split': [2, 5],
+            #     'min_samples_leaf': [1, 2],
+            #     'max_features': ['sqrt', 'log2']
+            # }
             param_grid = {
-                'n_estimators': [50, 100, 200],
-                'max_depth': [None, 20, 30],
-                'min_samples_split': [2, 5],
-                'min_samples_leaf': [1, 2],
-                'max_features': ['sqrt', 'log2']
+                'n_estimators': [50, 100, 200],  # More trees for stability
+                'max_depth': [8, 10, 12, None],  # Deeper trees (you may be underfitting)
+                'min_samples_split': [5, 10, 20],
+                'min_samples_leaf': [2, 5, 10],
+                'max_features': ['sqrt', 'log2', 0.5]  # Feature sampling
             }
             
             rf = RandomForestRegressor(random_state=self.random_state, n_jobs=-1)

@@ -306,7 +306,7 @@ def run_complete_pipeline():
                 'meets_requirements': bool(test_mae < 5.0)
             }
             
-            print(f"✓ {model_name}")
+            print(f" {model_name}")
             print(f"  Train MAE: {train_metrics['mae']:.3f}°")
             print(f"  CV MAE: {cv_metrics['mae_mean']:.3f}°")
             print(f"  Test MAE: {test_mae:.3f}° (held-out)")
@@ -327,7 +327,7 @@ def run_complete_pipeline():
                 print(f"  Best validation model saved: {best_model_path} (MAE: {best_val_error:.3f}° at {best_sample_size} samples)")
             
         except Exception as e:
-            print(f"❌ {model_name} failed: {str(e)}")
+            print(f" {model_name} failed: {str(e)}")
             results[model_name] = {'error': str(e)}
             import traceback
             traceback.print_exc()
@@ -340,7 +340,7 @@ def run_complete_pipeline():
     with open(os.path.join(results_dir, 'complete_results.json'), 'w') as f:
         json.dump(results, f, indent=2)
     
-    print(f"\n📊 RESULTS SUMMARY:")
+    print(f"\n RESULTS SUMMARY:")
     for name, result in results.items():
         if 'error' not in result:
             print(f"{name}:")
