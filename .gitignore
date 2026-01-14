@@ -1,6 +1,7 @@
 mosaic_test_preprocessing_database/
 rosbag2_2025_11_24-10_37_35/
 24-10-08-t000-forward-paradesquare/
+group48_test/
 
 # Python
 __pycache__/
