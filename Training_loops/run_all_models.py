@@ -19,7 +19,7 @@ from Models.L2_Linear_reg.L2_pipeline import create_baseline_model
 from Models.SVR_reg.SVR_pipeline import create_svr_model  
 from Models.Random_Forest_reg.Random_Forest_pipeline import create_random_forest_model
 from solar_azimuth_generator import SolarPositionCalculator
-from Bens_Data_Import.Image_data_loaders.Spatial_Gradient_Loader.SpatialPolarizationLoader import SpatialPolarizationLoader
+from Bens_Data_Import.Polarization_DataLoader.PolarizationDataLoader import PolarizationDataLoader
 from pathlib import Path
 
 # Set visualization style
@@ -145,25 +145,43 @@ def run_complete_pipeline():
     
     # Load actual polarization data
     print("Loading polarization data...")
-    data_path = Path("C:/Users/naesl/Polarization-Compass/Bens_Data_Import/24-10-08-t000-forward-paradesquare")
+    rmc_folder = Path("C:/Users/naesl/Polarization-Compass/Bens_Data_Import/Polarization_DataLoader/rmc")
     
-    loader = SpatialPolarizationLoader(
-        data_path=data_path,
-        start_deg=0.0,
-        step_deg=1.0,
-        target_size=(64, 64)  # Use 64x64 for faster training
-    )
+    loader = PolarizationDataLoader(rmc_folder=rmc_folder)
     
-    # Load all available data
-    print("Extracting DoLP and AoLP spatial data...")
-    dolp, aolp, azimuth = loader.get_spatial_data(max_samples=None)  # Load all data
+    # Load subset of data (adjust max_samples for memory constraints)
+    # Full dataset: ~2947 images. Start with subset for testing, then increase.
+    max_samples = min(500, len(loader))  # Start with 500 samples, increase to None for all data
+    
+    print(f"Extracting DoLP and AoLP features from images...")
+    print(f"Loading {max_samples} of {len(loader)} available samples...")
+    
+    dolp_list = []
+    aolp_list = []
+    azimuth_list = []
+    
+    for i in range(max_samples):
+        sample = loader.get_item(i)
+        if sample is not None:
+            dolp_list.append(sample['features']['dolp'])
+            aolp_list.append(sample['features']['aolp'])
+            azimuth_list.append(sample['label'])
+        
+        if (i + 1) % 100 == 0:
+            print(f"  Loaded {i + 1}/{max_samples} samples...")
+    
+    # Convert to numpy arrays
+    dolp = np.array(dolp_list)
+    aolp = np.array(aolp_list)
+    azimuth = np.deg2rad(np.array(azimuth_list))  # Convert to radians for consistency with old pipeline
     
     print(f"\n✓ Loaded {len(dolp)} samples")
     print(f"  DoLP shape: {dolp.shape}")
     print(f"  AoLP shape: {aolp.shape}")
     print(f"  Azimuth range: {np.rad2deg(azimuth.min()):.1f}° to {np.rad2deg(azimuth.max()):.1f}°")
     print(f"  DoLP range: [{dolp.min():.3f}, {dolp.max():.3f}]")
-    print(f"  AoLP range: [{aolp.min():.1f}°, {aolp.max():.1f}°]")
+    if aolp.size > 0:
+        print(f"  AoLP range: [{np.nanmin(aolp):.1f}° to {np.nanmax(aolp):.1f}°]")
     print()
     
     n_samples = len(dolp)
@@ -195,14 +213,13 @@ def run_complete_pipeline():
     # Test each model
     models = {
         'L2_Baseline': create_baseline_model(alpha=1.0),
+        'SVR_RBF': create_svr_model(C=1.0, gamma='scale', epsilon=0.1),
         'Random_Forest': create_random_forest_model(
-            n_estimators=20,        # Reduced from 50
-            max_depth=5,            # Reduced from 10 to prevent overfitting
-            min_samples_split=10,   # Increased from default 2
-            min_samples_leaf=5      # Increased from default 1
+            n_estimators=20,
+            max_depth=5,
+            min_samples_split=10,
+            min_samples_leaf=5
         )
-        # SVR commented out due to memory issues - fix and uncomment
-        # 'SVR_RBF': create_svr_model(C=1.0, gamma='scale', epsilon=0.1)
     }
     
     for model_name, model in models.items():
@@ -235,9 +252,14 @@ def run_complete_pipeline():
             
             for size in sample_sizes:
                 # Create fresh model for each iteration
-                model_temp = create_baseline_model(alpha=1.0) if 'L2' in model_name else create_random_forest_model(
-                    n_estimators=20, max_depth=5, min_samples_split=10, min_samples_leaf=5
-                )
+                if 'L2' in model_name:
+                    model_temp = create_baseline_model(alpha=1.0)
+                elif 'SVR' in model_name:
+                    model_temp = create_svr_model(C=1.0, gamma='scale', epsilon=0.1)
+                else:
+                    model_temp = create_random_forest_model(
+                        n_estimators=20, max_depth=5, min_samples_split=10, min_samples_leaf=5
+                    )
                 
                 # Use 80/20 split within the subset
                 subset_train_size = int(size * 0.8)
