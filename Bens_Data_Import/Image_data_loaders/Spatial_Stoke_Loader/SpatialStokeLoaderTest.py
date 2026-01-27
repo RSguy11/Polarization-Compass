@@ -5,71 +5,131 @@ from pathlib import Path
 from matplotlib.colors import hsv_to_rgb
 import matplotlib.pyplot as plt
 from scipy.optimize import least_squares
+import cv2
+import polanalyser as pa
 
 # Add workspace root to path (3 levels up from current file)
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from Bens_Data_Import.Image_data_loaders.Spatial_Stoke_Loader.SpatialStokeLoader import SpatialStokeDataLoader
 
-# Path to the PNG dataset (Ben's Data folder)
-TEST_IMAGE = Path("C:/Users/naesl/Polarization-Compass/Bens_Data_Import/group48_test")
+# Path to the test image
+TEST_IMAGE_PATH = Path("C:/Users/naesl/Polarization-Compass/Bens_Data_Import/group48_test/2024-10-08-19-31-33_angle_0.png")
+TEST_DATA_DIR = Path("C:/Users/naesl/Polarization-Compass/Bens_Data_Import/group48_test")
 
 def main():
-    loader = SpatialStokeDataLoader(TEST_IMAGE)
-        # --- 1. Extract raw ---
+    # Load the test image
+    print(f"Loading test image: {TEST_IMAGE_PATH}")
+    img = cv2.imread(str(TEST_IMAGE_PATH), 0)
+    
+    if img is None:
+        raise ValueError(f"Could not load image from {TEST_IMAGE_PATH}")
+    
+    print(f"Image loaded successfully, shape: {img.shape}")
+    
+    # Create loader with the image
+    loader = SpatialStokeDataLoader(img)
+    
+    # --- 1. Extract raw (both sensor and global frames) ---
+    # Sensor frame - no offset (instrument coordinates)
     x_raw, I0, I45, I90, I135, S0 = loader.get_item()
-    aolp_raw = x_raw["aolp"]
+    aolp_raw_sensor = x_raw["aolp"]  # Sensor frame
     dolp_raw = x_raw["dolp"]
+    
+    # Global frame - apply offset to align with ground truth
+    # You can adjust this offset based on your camera orientation
+    # Set to 0° for no transformation (same as sensor frame)
+    global_offset = 0.0  # Degrees - adjust this based on camera orientation relative to true North
+    x_raw_global, _, _, _, _, _ = loader.get_item(global_frame_offset=global_offset)
+    aolp_raw_global = x_raw_global["aolp"]  # Global frame
 
-    # --- 2. Load GT ---
-    aop_gt = load_dat_file(TEST_IMAGE / "aop_global_frame.dat", (1024,1224))
-    dop_gt = load_dat_file(TEST_IMAGE / "dop.dat", (1024,1224))
+    print(f"Extracted features - AoLP shape: {aolp_raw_sensor.shape}, DoLP shape: {dolp_raw.shape}")
+
+    # --- 2. Load GT and Calculate Global Frame Offset ---
+    aop_gt = load_dat_file(TEST_DATA_DIR / "aop_global_frame.dat", (1024, 1224))
+    dop_gt = load_dat_file(TEST_DATA_DIR / "dop.dat", (1024, 1224))
+    
+    # Downsample sensor frame to match ground truth resolution for offset calculation
+    aolp_sensor_downsampled = aolp_raw_sensor[::2, ::2]  # Simple downsampling
+    dolp_downsampled = dolp_raw[::2, ::2]
+    
+    # Calculate global offset from reliable pixels
+    dolp_min = 0.1  # Use higher threshold for offset calculation
+    valid_mask = (dolp_downsampled > dolp_min) & (dop_gt > dolp_min)
+    
+    if np.count_nonzero(valid_mask) > 1000:
+        # For solar principal plane transformation, we just need to enable it
+        # The offset calculation is not used for simple angle shifting anymore
+        global_offset = 1.0  # Any non-None value enables the transformation
+        print(f"\nEnabling solar principal plane transformation")
+        print(f"Using {np.count_nonzero(valid_mask)} valid pixels for validation")
+    else:
+        global_offset = None
+        print(f"\nNot enough valid pixels, disabling transformation")
+    
+    # Now extract with calculated offset
+    x_raw_global, _, _, _, _, _ = loader.get_item(global_frame_offset=global_offset)
+    aolp_raw_global = x_raw_global["aolp"]  # Global frame
+
+    print(f"Using global frame offset: {global_offset}°")
 
 
-    # --- 3. Calibrate gains ---
-    gains, res = calibrate_gains_from_gt(
-        I0, I45, I90, I135,
-        aop_gt, dop_gt,
-        dolp_min=0.02,
-        s0_min=5.0,
-        sample=150000,
-        use_offsets=False
-    )
+    # --- 3. Calibrate gains (COMMENTED OUT - requires GT data) ---
+    # gains, res = calibrate_gains_from_gt(
+    #     I0, I45, I90, I135,
+    #     aop_gt, dop_gt,
+    #     dolp_min=0.02,
+    #     s0_min=5.0,
+    #     sample=150000,
+    #     use_offsets=False
+    # )
+    # print("Estimated gains:", gains)
+    
+    # For visualization only, skip calibration
+    gains = None
 
-    print("Estimated gains:", gains)
-
-    # --- 4. Re-extract WITH calibration ---
-    x_cal, *_ = loader.get_item(gains=gains)
-    aolp_cal = x_cal["aolp"]
+    # --- 4. Re-extract WITH calibration (both sensor and global frames) ---
+    # Create new loader instance with same image for calibrated extraction
+    loader_cal = SpatialStokeDataLoader(img)
+    
+    # Sensor frame - no offset
+    x_cal, *_ = loader_cal.get_item(gains=gains)
+    aolp_cal_sensor = x_cal["aolp"]  # Sensor frame
     dolp_cal = x_cal["dolp"]
+    
+    # Global frame - with offset
+    x_cal_global, *_ = loader_cal.get_item(gains=gains, global_frame_offset=global_offset)
+    aolp_cal_global = x_cal_global["aolp"]  # Global frame
 
 
-      # --- 5. Compare errors ---
-    print("RAW errors:")
-    print(error_calcs(aolp_raw, aop_gt, dolp_raw, dop_gt))
+      # --- 5. Visualizations only ---
+    print("\nRAW (uncalibrated) visualization:")
+    visulization_all(aolp_raw_sensor, aolp_raw_global, dolp_raw, title_prefix="RAW")
 
-    visulization(aolp_raw, dolp_raw)
+    print("\nWith global frame offset visualization:")
+    visulization_all(aolp_cal_sensor, aolp_cal_global, dolp_cal, title_prefix="GLOBAL OFFSET")
 
-    print("CALIBRATED errors:")
-    print(error_calcs(aolp_cal, aop_gt, dolp_cal, dop_gt))
-
-    visulization(aolp_cal, dolp_cal)
-
-
-    # --- 6. Normalized Stokes (double-angle) alignment ---
-    dolp_min = 0.02
-    valid = (dolp_cal > dolp_min) & (dop_gt > dolp_min)
-
-    a = np.deg2rad(aolp_cal[valid])
-    b = np.deg2rad(aop_gt[valid])
-
-    score = np.mean(np.cos(2.0 * (a - b)))
-    print("Double-angle similarity (calibrated):", score)
-
-    a_raw = np.deg2rad(aolp_raw[valid])
-    score_raw = np.mean(np.cos(2.0 * (a_raw - b)))
-
-    print("Double-angle similarity (raw):", score_raw)
+    # --- 6. Error calculations (COMMENTED OUT - requires GT data) ---
+    # print("RAW errors:")
+    # print(error_calcs(aolp_raw_sensor, aop_gt, dolp_raw, dop_gt))
+    # 
+    # print("CALIBRATED errors:")
+    # print(error_calcs(aolp_cal_sensor, aop_gt, dolp_cal, dop_gt))
+    # 
+    # # --- 7. Normalized Stokes (double-angle) alignment ---
+    # dolp_min = 0.02
+    # valid = (dolp_cal > dolp_min) & (dop_gt > dolp_min)
+    # 
+    # a = np.deg2rad(aolp_cal_sensor[valid])
+    # b = np.deg2rad(aop_gt[valid])
+    # 
+    # score = np.mean(np.cos(2.0 * (a - b)))
+    # print("Double-angle similarity (calibrated):", score)
+    # 
+    # a_raw = np.deg2rad(aolp_raw_sensor[valid])
+    # score_raw = np.mean(np.cos(2.0 * (a_raw - b)))
+    # 
+    # print("Double-angle similarity (raw):", score_raw)
 
 
 def aop_err_deg(a, b):
@@ -135,28 +195,80 @@ def error_calcs(aop_extract, aop_truth, dop_extract, dop_truth, dolp_min = 0.02)
     return aop_err_metrics, dop_err_metrics
 
 
+def visulization_all(AoLP_sensor, AoLP_global, DoLP, title_prefix="", dolp_min=0.02):
+    """
+    Visualize DoLP, Sensor AoLP, and Global AoLP as separate figures.
+    
+    Parameters:
+    -----------
+    AoLP_sensor : np.ndarray
+        AoLP in sensor/instrument frame
+    AoLP_global : np.ndarray
+        AoLP in global frame
+    DoLP : np.ndarray
+        Degree of Linear Polarization
+    title_prefix : str
+        Prefix for titles (e.g., "RAW" or "CALIBRATED")
+    dolp_min : float
+        Minimum DoLP threshold for masking
+    """
+    # -----------------------------
+    # DoLP visualization - Rainbow (Blue to Red)
+    # -----------------------------
+    plt.figure(figsize=(6, 5))
+    im0 = plt.imshow(DoLP, cmap="jet", vmin=0.0, vmax=1.0)
+    plt.title(f"{title_prefix} DoLP")
+    plt.axis("off")
+    plt.colorbar(im0, label="DoLP")
+
+    # -----------------------------
+    # Sensor AoLP visualization
+    # Mask low-DoLP pixels
+    # -----------------------------
+    plt.figure(figsize=(6, 5))
+    AoLP_sensor_masked = np.ma.masked_where(DoLP < dolp_min, AoLP_sensor)
+    im1 = plt.imshow(AoLP_sensor_masked, cmap="jet_r", vmin=-90, vmax=90)
+    plt.title(f"{title_prefix} AoLP (Sensor Frame)")
+    plt.axis("off")
+    plt.colorbar(im1, label="Angle (deg)")
+
+    # -----------------------------
+    # Global AoLP visualization
+    # Mask low-DoLP pixels
+    # -----------------------------
+    plt.figure(figsize=(6, 5))
+    AoLP_global_masked = np.ma.masked_where(DoLP < dolp_min, AoLP_global)
+    im2 = plt.imshow(AoLP_global_masked, cmap="jet_r", vmin=-90, vmax=90)
+    plt.title(f"{title_prefix} AoLP (Global Frame)")
+    plt.axis("off")
+    plt.colorbar(im2, label="Angle (deg)")
+
+    plt.show()
+
+
 def visulization(AoLP, DoLP):
     dolp_min = 0.02
+    
     # -----------------------------
-    # DoLP visualization (scalar)
+    # DoLP visualization - Rainbow (Blue to Red)
     # -----------------------------
-    plt.figure(figsize=(5, 5))
-    plt.imshow(DoLP, cmap="viridis", vmin=0.0, vmax=1.0)
-    plt.title("DoLP")
+    plt.figure(figsize=(6, 5))
+    plt.imshow(DoLP, cmap="jet", vmin=0.0, vmax=1.0)
+    plt.title("DoLP (Degree of Linear Polarization)")
     plt.axis("off")
     plt.colorbar(label="DoLP")
 
     # -----------------------------
-    # AoLP visualization (angle)
+    # AoLP visualization - Rainbow for angles
     # Mask low-DoLP pixels (AoLP meaningless there)
     # -----------------------------
     AoLP_masked = np.ma.masked_where(DoLP < dolp_min, AoLP)
 
-    plt.figure(figsize=(5, 5))
-    plt.imshow(AoLP_masked, cmap="hsv", vmin=-90, vmax=90)
-    plt.title("AoLP (deg)")
+    plt.figure(figsize=(6, 5))
+    plt.imshow(AoLP_masked, cmap="jet_r", vmin=-90, vmax=90)
+    plt.title("AoLP (Angle of Linear Polarization)")
     plt.axis("off")
-    plt.colorbar(label="deg")
+    plt.colorbar(label="Angle (deg)")
 
     plt.show()
 

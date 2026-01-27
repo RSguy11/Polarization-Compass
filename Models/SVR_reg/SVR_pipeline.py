@@ -1,16 +1,4 @@
-"""
-SVR (Support Vector Regression) Pipeline for Polarization-based Solar Azimuth Prediction
-
-This module implements the SVR with RBF kernel model as specified in the blueprint.
-SVR is known to perform well on non-linear regression problems and may capture
-more complex relationships in polarization data compared to linear regression.
-
-Key features:
-- RBF (Radial Basis Function) kernel as specified in blueprint
-- Feature extraction from DoLP and AoLP data (same as L2 baseline)
-- Cross-validation for robust evaluation
-- Hyperparameter optimization for C, gamma, and epsilon
-"""
+"""SVR (Support Vector Regression) Pipeline for Polarization-based Solar Azimuth Prediction"""
 
 import numpy as np
 import pandas as pd
@@ -25,19 +13,13 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings('ignore')
 
-# Import the feature extraction from L2 pipeline
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from L2_Linear_reg.L2_pipeline import L2PolarizationRegressor
 
 
 class SVRPolarizationRegressor:
-    """
-    SVR (Support Vector Regression) model for solar azimuth prediction from polarization data.
-    
-    Uses RBF kernel as specified in the project blueprint. This model can capture
-    non-linear relationships that the L2 baseline might miss.
-    """
+    """SVR model for solar azimuth prediction from polarization data."""
     
     def __init__(self, 
                  C: float = 1.0,
@@ -45,60 +27,103 @@ class SVRPolarizationRegressor:
                  epsilon: float = 0.1,
                  kernel: str = 'rbf',
                  random_state: int = 42):
-        """
-        Initialize the SVR regression pipeline.
-        
-        Args:
-            C: Regularization parameter (higher = less regularization)
-            gamma: Kernel coefficient ('scale', 'auto', or float)
-            epsilon: Epsilon-tube within which no penalty is applied
-            kernel: Kernel type ('rbf' as specified in blueprint)
-            random_state: Random seed for reproducibility
-        """
+        """Initialize the SVR regression pipeline."""
         self.C = C
         self.gamma = gamma
         self.epsilon = epsilon
         self.kernel = kernel
         self.random_state = random_state
         
-        # Initialize components
         self.scaler = StandardScaler()
-        self.regressor = SVR(
-            C=self.C,
-            gamma=self.gamma, 
-            epsilon=self.epsilon,
-            kernel=self.kernel
-        )
-        
-        # Use L2 feature extractor for consistency
+        self.regressor = SVR(C=self.C, gamma=self.gamma, epsilon=self.epsilon, kernel=self.kernel)
         self.feature_extractor = L2PolarizationRegressor(random_state=self.random_state)
-        
-        # Training history
         self.is_fitted = False
         self.training_metrics = {}
         
     def extract_polarization_features(self, dolp: np.ndarray, aolp: np.ndarray) -> np.ndarray:
-        """
-        Extract features from DoLP and AoLP data using the same method as L2 baseline.
-        This ensures fair comparison between models.
-        """
+        """Extract features using L2 method."""
         return self.feature_extractor.extract_polarization_features(dolp, aolp)
     
     def prepare_features(self, features: np.ndarray) -> np.ndarray:
-        """
-        Apply preprocessing transformations to features.
-        SVR is sensitive to feature scaling, so standardization is crucial.
-        """
-        # Handle NaN values
+        """Apply preprocessing transformations."""
         features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
-        
-        # Scale features (critical for SVR performance)
         if self.is_fitted:
             features_scaled = self.scaler.transform(features)
         else:
             features_scaled = self.scaler.fit_transform(features)
-        
         return features_scaled
+    
+    def fit_from_features(self, features: np.ndarray, azimuth: np.ndarray) -> Dict:
+        """Train the SVR model using pre-extracted features."""
+        print(f"Training with {features.shape[0]} samples, {features.shape[1]} features")
+        print("Preprocessing features...")
+        X = self.prepare_features(features)
+        print(f"Final feature matrix shape: {X.shape}")
+        print(f"Training SVR model (kernel={self.kernel}, C={self.C}, gamma={self.gamma})...")
+        
+        self.regressor.fit(X, azimuth)
+        self.is_fitted = True
+        
+        y_pred = self.regressor.predict(X)
+        
+        metrics = {
+            'mae': np.rad2deg(mean_absolute_error(azimuth, y_pred)),
+            'rmse': np.rad2deg(np.sqrt(mean_squared_error(azimuth, y_pred))),
+            'r2': self.regressor.score(X, azimuth),
+            'n_samples': len(azimuth),
+            'n_features': X.shape[1],
+            'n_support_vectors': len(self.regressor.support_)
+        }
+        
+        self.training_metrics = metrics
+        print(f"Training completed!")
+        print(f"Training MAE: {metrics['mae']:.3f}°")
+        print(f"Training RMSE: {metrics['rmse']:.3f}°") 
+        print(f"Training R²: {metrics['r2']:.3f}")
+        print(f"Support vectors: {metrics['n_support_vectors']}")
+        
+        return metrics
+    
+    def predict_from_features(self, features: np.ndarray) -> np.ndarray:
+        """Predict solar azimuth from pre-extracted features."""
+        if not self.is_fitted:
+            raise RuntimeError("Model must be fitted before prediction")
+        X = self.prepare_features(features)
+        return self.regressor.predict(X)
+    
+    def cross_validate_from_features(self, features: np.ndarray, azimuth: np.ndarray, cv_folds: int = 5) -> Dict:
+        """Perform k-fold cross-validation using pre-extracted features."""
+        from sklearn.model_selection import KFold
+        kf = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+        
+        mae_scores, rmse_scores, r2_scores = [], [], []
+        
+        print(f"Performing {cv_folds}-fold cross-validation...")
+        for fold, (train_idx, val_idx) in enumerate(kf.split(features), 1):
+            temp_model = SVRPolarizationRegressor(C=self.C, gamma=self.gamma, epsilon=self.epsilon, kernel=self.kernel)
+            temp_model.fit_from_features(features[train_idx], azimuth[train_idx])
+            y_pred = temp_model.predict_from_features(features[val_idx])
+            
+            mae_scores.append(np.rad2deg(mean_absolute_error(azimuth[val_idx], y_pred)))
+            rmse_scores.append(np.rad2deg(np.sqrt(mean_squared_error(azimuth[val_idx], y_pred))))
+            r2_scores.append(temp_model.regressor.score(temp_model.prepare_features(features[val_idx]), azimuth[val_idx]))
+            
+            print(f"  Fold {fold}/{cv_folds}")
+            print(f"    MAE: {mae_scores[-1]:.3f}°, RMSE: {rmse_scores[-1]:.3f}°, R²: {r2_scores[-1]:.3f}")
+        
+        results = {
+            'mae_mean': np.mean(mae_scores), 'mae_std': np.std(mae_scores),
+            'rmse_mean': np.mean(rmse_scores), 'rmse_std': np.std(rmse_scores),
+            'r2_mean': np.mean(r2_scores), 'r2_std': np.std(r2_scores)
+        }
+        
+        print(f"\nCross-validation Results:")
+        print(f"MAE: {results['mae_mean']:.3f} ± {results['mae_std']:.3f}°")
+        print(f"RMSE: {results['rmse_mean']:.3f} ± {results['rmse_std']:.3f}°")
+        print(f"R²: {results['r2_mean']:.3f} ± {results['r2_std']:.3f}")
+        print(f"Meets blueprint requirements: {'✓' if results['mae_mean'] < 5.0 else '✗'}")
+        
+        return results
     
     def fit(self, dolp: np.ndarray, aolp: np.ndarray, azimuth: np.ndarray) -> Dict:
         """
@@ -130,9 +155,13 @@ class SVRPolarizationRegressor:
         # Calculate training metrics
         y_pred = self.regressor.predict(X)
         
+        # Convert errors from radians to degrees
+        mae_rad = mean_absolute_error(azimuth, y_pred)
+        rmse_rad = np.sqrt(mean_squared_error(azimuth, y_pred))
+        
         metrics = {
-            'mae': mean_absolute_error(azimuth, y_pred),
-            'rmse': np.sqrt(mean_squared_error(azimuth, y_pred)),
+            'mae': np.rad2deg(mae_rad),
+            'rmse': np.rad2deg(rmse_rad),
             'r2': self.regressor.score(X, azimuth),
             'n_samples': len(azimuth),
             'n_features': X.shape[1],

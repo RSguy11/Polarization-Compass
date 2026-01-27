@@ -1,0 +1,11 @@
+{
+  "L2_Baseline": {
+    "error": "Unable to allocate 7.47 GiB for an array with shape (200, 2048, 2448) and data type float64"
+  },
+  "SVR_RBF": {
+    "error": "Unable to allocate 7.47 GiB for an array with shape (200, 2048, 2448) and data type float64"
+  },
+  "Random_Forest": {
+    "error": "Unable to allocate 7.47 GiB for an array with shape (200, 2048, 2448) and data type float64"
+  }
+}

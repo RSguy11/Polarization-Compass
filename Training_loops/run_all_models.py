@@ -1,222 +1,142 @@
-"""
-Complete Model Training Pipeline
-
-This script runs all three models (L2, SVR, Random Forest) with the same dataset
-and provides a complete comparison as specified in the blueprint.
-"""
-
 import os
 import sys
 import numpy as np
 from datetime import datetime
 import json
-import matplotlib.pyplot as plt
+import gc
 
-# Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from Models.L2_Linear_reg.L2_pipeline import create_baseline_model
-from Models.SVR_reg.SVR_pipeline import create_svr_model  
-from Models.Random_Forest_reg.Random_Forest_pipeline import create_random_forest_model
-from solar_azimuth_generator import SolarPositionCalculator
-from Bens_Data_Import.Polarization_DataLoader.PolarizationDataLoader import PolarizationDataLoader
 from pathlib import Path
 
-# Set visualization style
-plt.style.use('seaborn-v0_8-darkgrid')
-plt.rcParams['figure.figsize'] = (10, 6)
+
+def extract_features_from_single_image(dolp, aolp):
+    """Extract fully flattened DoLP and AoLP arrays as features."""
+    dolp_flat = dolp.ravel()
+    aolp_flat = aolp.ravel()
+    features = np.concatenate([dolp_flat, aolp_flat])
+    return np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
 
 
-def create_training_plots(results, training_history, output_dir):
-    """
-    Create comprehensive training visualization plots.
+def load_batch_features(loader, indices, verbose=False):
+    """Load batch and extract REAL feature vectors from DoLP and AoLP."""
+    feature_list = []
+    failed_count = 0
     
-    Args:
-        results: Dictionary containing model training results
-        training_history: Dictionary containing training progression data
-        output_dir: Directory to save plots
-    """
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Extract metrics for plotting
-    model_names = []
-    train_mae = []
-    best_val_mae = []
-    best_val_rmse = []
-    
-    for name, result in results.items():
-        if 'error' not in result:
-            model_names.append(name)
-            train_mae.append(result['training_mae'])
-            best_val_mae.append(result['best_val_mae'])
-            best_val_rmse.append(result['best_val_rmse'])
-    
-    if not model_names:
-        print(" No successful results to plot")
-        return
-    
-    # Create figure with GridSpec layout for better spacing
-    fig = plt.figure(figsize=(18, 6))
-    gs = fig.add_gridspec(2, 4, width_ratios=[2, 1, 1, 1], hspace=0.4, wspace=0.4)
-    
-    # Plot 1: Learning Curves (Error vs Training Set Size) - takes full left side
-    ax1 = fig.add_subplot(gs[:, 0])
-    
-    if training_history:
-        for model_name in model_names:
-            if model_name in training_history:
-                history = training_history[model_name]
-                ax1.plot(history['sample_sizes'], history['train_errors'], 
-                        'o-', label=f'{model_name} (Train)', linewidth=2, markersize=6)
-                ax1.plot(history['sample_sizes'], history['val_errors'], 
-                        's--', label=f'{model_name} (Val)', linewidth=2, markersize=6, alpha=0.7)
-                # Mark best validation checkpoint
-                best_idx = history['sample_sizes'].index(history['best_sample_size'])
-                ax1.plot(history['best_sample_size'], history['val_errors'][best_idx], 
-                        '*', markersize=20, color='gold', markeredgecolor='black', 
-                        markeredgewidth=1.5, zorder=10)
+    for idx_num, idx in enumerate(indices):
+        if verbose and (idx_num + 1) % 50 == 0:
+            print(f"    Processing {idx_num + 1}/{len(indices)} features (extracted: {len(feature_list)}, failed: {failed_count})...")
+            sys.stdout.flush()
         
-        ax1.axhline(y=5.0, color='green', linestyle='--', linewidth=2, label='Target (5° MAE)', alpha=0.7)
-        ax1.set_xlabel('Training Set Size', fontsize=12, fontweight='bold')
-        ax1.set_ylabel('Mean Absolute Error (degrees)', fontsize=12, fontweight='bold')
-        ax1.set_title('Learning Curves: Error vs Training Set Size', fontsize=13, fontweight='bold')
-        ax1.legend(fontsize=9, loc='best')
-        ax1.grid(True, alpha=0.3)
-        ax1.set_ylim(bottom=0)
+        try:
+            sample = loader.get_item(idx)
+            if sample is not None:
+                features = extract_features_from_single_image(
+                    sample['features']['dolp'],
+                    sample['features']['aolp']
+                )
+                # Convert to float32 to save memory
+                feature_list.append(features.astype(np.float32))
+            else:
+                failed_count += 1
+        except Exception as e:
+            failed_count += 1
+        
+        # Force garbage collection every 50 samples to free memory from temporary arrays
+        if (idx_num + 1) % 50 == 0:
+            gc.collect()
+    
+    print(f"    Successfully extracted {len(feature_list)} features ({failed_count} failed)")
+    
+    # Convert to numpy array with float32 to save memory
+    if len(feature_list) > 0:
+        return np.array(feature_list, dtype=np.float32)
     else:
-        ax1.text(0.5, 0.5, 'Learning curves require\nincremental training', 
-                ha='center', va='center', fontsize=12, transform=ax1.transAxes)
-        ax1.set_title('Learning Curves', fontsize=13, fontweight='bold')
-    
-    # Plot 2: Metrics Dashboard (3 sub-panels on the right)
-    ax2 = fig.add_subplot(gs[0, 1])  # Top left
-    ax3 = fig.add_subplot(gs[0, 2])  # Top middle
-    ax4 = fig.add_subplot(gs[0, 3])  # Top right
-    
-    # MAE (Best Validation)
-    ax2.bar(range(len(model_names)), best_val_mae, color='#3498db', alpha=0.8, edgecolor='black')
-    ax2.axhline(y=5.0, color='green', linestyle='--', linewidth=2, alpha=0.7)
-    ax2.set_ylabel('MAE (degrees)', fontweight='bold', fontsize=10)
-    ax2.set_title('Best Validation MAE', fontweight='bold', fontsize=11)
-    ax2.set_xticks(range(len(model_names)))
-    ax2.set_xticklabels(model_names, rotation=15, ha='right', fontsize=9)
-    ax2.grid(axis='y', alpha=0.3)
-    for i, v in enumerate(best_val_mae):
-        ax2.text(i, v, f'{v:.1f}°', ha='center', va='bottom', fontsize=8)
-    
-    # RMSE (Best Validation)
-    ax3.bar(range(len(model_names)), best_val_rmse, color='#e74c3c', alpha=0.8, edgecolor='black')
-    ax3.set_ylabel('RMSE (degrees)', fontweight='bold', fontsize=10)
-    ax3.set_title('Best Validation RMSE', fontweight='bold', fontsize=11)
-    ax3.set_xticks(range(len(model_names)))
-    ax3.set_xticklabels(model_names, rotation=15, ha='right', fontsize=9)
-    ax3.grid(axis='y', alpha=0.3)
-    for i, v in enumerate(best_val_rmse):
-        ax3.text(i, v, f'{v:.1f}°', ha='center', va='bottom', fontsize=8)
-    
-    # Requirements Met
-    meets_req = [results[name]['meets_requirements'] for name in model_names]
-    colors = ['#2ecc71' if met else '#e74c3c' for met in meets_req]
-    ax4.bar(range(len(model_names)), [1 if met else 0 for met in meets_req], color=colors, alpha=0.8, edgecolor='black')
-    ax4.set_ylabel('Meets Requirements', fontweight='bold', fontsize=10)
-    ax4.set_title('Blueprint Compliance\n(MAE < 5°)', fontweight='bold', fontsize=11)
-    ax4.set_ylim([0, 1.2])
-    ax4.set_yticks([0, 1])
-    ax4.set_yticklabels(['No', 'Yes'])
-    ax4.set_xticks(range(len(model_names)))
-    ax4.set_xticklabels(model_names, rotation=15, ha='right', fontsize=9)
-    ax4.grid(axis='y', alpha=0.3)
-    
-    plt.suptitle('Training Dashboard: Learning Curves & Performance Metrics', fontsize=16, fontweight='bold', y=0.98)
-    plt.savefig(os.path.join(output_dir, 'training_dashboard.png'), dpi=300, bbox_inches='tight')
-    plt.close()
-    print(f"✓ Saved training dashboard")
-    
-    print(f"\n📊 All plots saved to: {output_dir}")
+        raise ValueError("No features were successfully extracted!")
 
 
 def run_complete_pipeline():
     """Run the complete model training pipeline for all three models."""
+    
+    # IMPORT SKLEARN AND MODELS HERE (after __main__ guard)
+    from Models.L2_Linear_reg.L2_pipeline import create_baseline_model
+    from Models.SVR_reg.SVR_pipeline import create_svr_model  
+    from Models.Random_Forest_reg.Random_Forest_pipeline import create_random_forest_model
+    from solar_azimuth_generator import SolarPositionCalculator
+    from Bens_Data_Import.Polarization_DataLoader.PolarizationDataLoader import PolarizationDataLoader
+    from Training_loops.visualization import create_training_plots
     
     print("POLARIZATION COMPASS - COMPLETE MODEL PIPELINE")
     print("=" * 60)
     print("Training L2, SVR, and Random Forest models")
     print()
     
-    # Load actual polarization data
-    print("Loading polarization data...")
+    print("STEP 1: Loading & Caching Data")
+    print("=" * 60)
+    
     rmc_folder = Path("C:/Users/naesl/Polarization-Compass/Bens_Data_Import/Polarization_DataLoader/rmc")
-    
     loader = PolarizationDataLoader(rmc_folder=rmc_folder)
+    max_samples = len(loader)
     
-    # Load subset of data (adjust max_samples for memory constraints)
-    # Full dataset: ~2947 images. Start with subset for testing, then increase.
-    max_samples = min(500, len(loader))  # Start with 500 samples, increase to None for all data
+    batch_size = 100
+    all_indices = []
+    all_labels = []
     
-    print(f"Extracting DoLP and AoLP features from images...")
-    print(f"Loading {max_samples} of {len(loader)} available samples...")
-    
-    dolp_list = []
-    aolp_list = []
-    azimuth_list = []
-    
+    print(f"Loading metadata from {max_samples} samples...")
     for i in range(max_samples):
-        sample = loader.get_item(i)
-        if sample is not None:
-            dolp_list.append(sample['features']['dolp'])
-            aolp_list.append(sample['features']['aolp'])
-            azimuth_list.append(sample['label'])
-        
-        if (i + 1) % 100 == 0:
-            print(f"  Loaded {i + 1}/{max_samples} samples...")
+        try:
+            all_indices.append(i)
+            all_labels.append(loader.labels_df.iloc[i]['azimuth'])
+            
+            # Progress every 300
+            if (i + 1) % 300 == 0:
+                print(f"  Loaded {i + 1}/{max_samples} samples...")
+        except Exception as e:
+            continue
     
-    # Convert to numpy arrays
-    dolp = np.array(dolp_list)
-    aolp = np.array(aolp_list)
-    azimuth = np.deg2rad(np.array(azimuth_list))  # Convert to radians for consistency with old pipeline
+    print(f"[OK] Loaded metadata for {len(all_indices)} samples")
+    print(f"    Azimuth range: {min(all_labels):.1f}° → {max(all_labels):.1f}°")
     
-    print(f"\n✓ Loaded {len(dolp)} samples")
-    print(f"  DoLP shape: {dolp.shape}")
-    print(f"  AoLP shape: {aolp.shape}")
-    print(f"  Azimuth range: {np.rad2deg(azimuth.min()):.1f}° to {np.rad2deg(azimuth.max()):.1f}°")
-    print(f"  DoLP range: [{dolp.min():.3f}, {dolp.max():.3f}]")
-    if aolp.size > 0:
-        print(f"  AoLP range: [{np.nanmin(aolp):.1f}° to {np.nanmax(aolp):.1f}°]")
-    print()
+    azimuth = np.deg2rad(np.array(all_labels))
+    n_samples = len(all_indices)
     
-    n_samples = len(dolp)
     
-    # Shuffle data to prevent sequential bias (data is ordered by azimuth angle)
-    print("Shuffling data to ensure random distribution...")
+    print("\nShuffling & splitting data (80% train / 20% test)...")
     np.random.seed(42)
     shuffle_idx = np.random.permutation(n_samples)
-    dolp = dolp[shuffle_idx]
-    aolp = aolp[shuffle_idx]
+    shuffled_indices = [all_indices[i] for i in shuffle_idx]
     azimuth = azimuth[shuffle_idx]
     
-    # Create fixed train/test split (80/20)
     test_size = int(n_samples * 0.2)
     train_size = n_samples - test_size
+    train_indices = shuffled_indices[:train_size]
+    test_indices = shuffled_indices[train_size:]
+    azimuth_train = azimuth[:train_size]
+    azimuth_test = azimuth[train_size:]
     
-    dolp_train, dolp_test = dolp[:train_size], dolp[train_size:]
-    aolp_train, aolp_test = aolp[:train_size], aolp[train_size:]
-    azimuth_train, azimuth_test = azimuth[:train_size], azimuth[train_size:]
+    print(f"[OK] Train: {train_size} samples | Test: {test_size} samples")
     
-    print(f"✓ Split data: {train_size} training, {test_size} test samples\n")
+    print("\nCaching training features (fully flattened arrays)...")
+    all_train_features = load_batch_features(loader, train_indices, verbose=True)
+    print(f"[OK] Cached training features: {all_train_features.shape}")
     
-    # Create timestamp for saving models and results
+    print("Caching test features...")
+    all_test_features = load_batch_features(loader, test_indices, verbose=True)
+    print(f"[OK] Cached test features: {all_test_features.shape}\n")
+    
     today = datetime.now().strftime('%Y-%m-%d')
-    
     results = {}
     training_history = {}
     
-    # Test each model
+    print("STEP 2: Training Models")
+    print("=" * 60)
+    
     models = {
-        'L2_Baseline': create_baseline_model(alpha=1.0),
-        'SVR_RBF': create_svr_model(C=1.0, gamma='scale', epsilon=0.1),
+        'L2_Baseline': create_baseline_model(alpha=0.001),
+        'SVR_RBF': create_svr_model(C=100.0, gamma=0.001, epsilon=0.1),
         'Random_Forest': create_random_forest_model(
-            n_estimators=20,
-            max_depth=5,
+            n_estimators=200,
+            max_depth=10,
             min_samples_split=10,
             min_samples_leaf=5
         )
@@ -225,10 +145,8 @@ def run_complete_pipeline():
     for model_name, model in models.items():
         print(f"\nTraining {model_name}...")
         try:
-            # Generate learning curve by training on increasing sample sizes
             print(f"  Generating learning curve...")
             
-            # Use appropriate sample sizes based on total training data
             if train_size >= 200:
                 sample_sizes = [20, 50, 100, 150, 200, min(250, train_size), train_size]
             elif train_size >= 100:
@@ -238,48 +156,40 @@ def run_complete_pipeline():
             else:
                 sample_sizes = [min(5, train_size), min(10, train_size), train_size]
             
-            # Remove duplicates and ensure ascending order
             sample_sizes = sorted(list(set(sample_sizes)))
-            
             train_errors = []
             val_errors = []
-            
-            # Track best validation model
             best_val_error = float('inf')
             best_val_rmse = float('inf')
-            best_model = None
             best_sample_size = 0
             
             for size in sample_sizes:
-                # Create fresh model for each iteration
                 if 'L2' in model_name:
-                    model_temp = create_baseline_model(alpha=1.0)
+                    model_temp = create_baseline_model(alpha=0.001)
                 elif 'SVR' in model_name:
-                    model_temp = create_svr_model(C=1.0, gamma='scale', epsilon=0.1)
+                    model_temp = create_svr_model(C=100.0, gamma=0.001, epsilon=0.1)
                 else:
                     model_temp = create_random_forest_model(
-                        n_estimators=20, max_depth=5, min_samples_split=10, min_samples_leaf=5
+                        n_estimators=200, max_depth=10, min_samples_split=10, min_samples_leaf=5
                     )
                 
-                # Use 80/20 split within the subset
                 subset_train_size = int(size * 0.8)
                 subset_val_size = size - subset_train_size
+                subset_indices = np.random.choice(range(len(all_train_features)), subset_train_size, replace=False)
+                train_features = all_train_features[subset_indices]
                 
-                # Train on subset
-                train_metrics_temp = model_temp.fit(
-                    dolp_train[:subset_train_size], 
-                    aolp_train[:subset_train_size], 
-                    azimuth_train[:subset_train_size]
+                train_metrics_temp = model_temp.fit_from_features(
+                    train_features, 
+                    azimuth_train[subset_indices]
                 )
-                
-                # Validate on consistent held-out portion from training data
                 if subset_val_size > 0:
-                    val_pred = model_temp.predict(
-                        dolp_train[subset_train_size:size], 
-                        aolp_train[subset_train_size:size]
-                    )
-                    val_error = np.rad2deg(np.mean(np.abs(val_pred - azimuth_train[subset_train_size:size])))
-                    val_rmse = np.rad2deg(np.sqrt(np.mean((val_pred - azimuth_train[subset_train_size:size])**2)))
+                    remaining_indices = np.setdiff1d(np.arange(len(all_train_features)), subset_indices)
+                    val_indices = np.random.choice(remaining_indices, subset_val_size, replace=False)
+                    val_features = all_train_features[val_indices]
+                    
+                    val_pred = model_temp.predict_from_features(val_features)
+                    val_error = np.rad2deg(np.mean(np.abs(val_pred - azimuth_train[val_indices])))
+                    val_rmse = np.rad2deg(np.sqrt(np.mean((val_pred - azimuth_train[val_indices])**2)))
                 else:
                     val_error = train_metrics_temp['mae']
                     val_rmse = train_metrics_temp['rmse']
@@ -287,14 +197,12 @@ def run_complete_pipeline():
                 train_errors.append(train_metrics_temp['mae'])
                 val_errors.append(val_error)
                 
-                # Track best validation performance
                 if val_error < best_val_error:
                     best_val_error = val_error
                     best_val_rmse = val_rmse
-                    best_model = model_temp  # Save reference to best model
                     best_sample_size = size
             
-            print(f"  Best validation MAE: {best_val_error:.3f}° at {best_sample_size} samples")
+            print(f"  Best validation MAE: {best_val_error:.3f} deg at {best_sample_size} samples")
             
             training_history[model_name] = {
                 'sample_sizes': sample_sizes,
@@ -305,16 +213,15 @@ def run_complete_pipeline():
                 'best_sample_size': best_sample_size
             }
             
-            # Train final model on all training data
-            train_metrics = model.fit(dolp_train, aolp_train, azimuth_train)
+            print(f"  Training final model on full training set ({train_size} samples)...")
+            train_metrics = model.fit_from_features(all_train_features, azimuth_train)
             
-            # Evaluate on held-out test set (convert from radians to degrees)
-            test_predictions = model.predict(dolp_test, aolp_test)
+            print(f"  Evaluating on test set ({test_size} samples)...")
+            test_predictions = model.predict_from_features(all_test_features)
             test_mae = np.rad2deg(np.mean(np.abs(test_predictions - azimuth_test)))
             test_rmse = np.rad2deg(np.sqrt(np.mean((test_predictions - azimuth_test) ** 2)))
             
-            # Cross-validate on training data only
-            cv_metrics = model.cross_validate(dolp_train, aolp_train, azimuth_train, cv_folds=5)
+            cv_metrics = model.cross_validate_from_features(all_train_features, azimuth_train, cv_folds=5)
             
             results[model_name] = {
                 'training_mae': float(train_metrics['mae']),
@@ -329,24 +236,16 @@ def run_complete_pipeline():
             }
             
             print(f" {model_name}")
-            print(f"  Train MAE: {train_metrics['mae']:.3f}°")
-            print(f"  CV MAE: {cv_metrics['mae_mean']:.3f}°")
-            print(f"  Test MAE: {test_mae:.3f}° (held-out)")
+            print(f"  Train MAE: {train_metrics['mae']:.3f} deg")
+            print(f"  CV MAE: {cv_metrics['mae_mean']:.3f} deg")
+            print(f"  Test MAE: {test_mae:.3f} deg (held-out)")
             
-            # Save two versions: final model and best validation model
             model_dir = os.path.join('saved_models', today)
             os.makedirs(model_dir, exist_ok=True)
             
-            # Save final model (trained on all data)
             model_path = os.path.join(model_dir, f'{model_name}_final.pkl')
             model.save_model(model_path)
             print(f"  Final model saved: {model_path}")
-            
-            # Save best validation model (early stopping checkpoint)
-            if best_model is not None:
-                best_model_path = os.path.join(model_dir, f'{model_name}_best_val.pkl')
-                best_model.save_model(best_model_path)
-                print(f"  Best validation model saved: {best_model_path} (MAE: {best_val_error:.3f}° at {best_sample_size} samples)")
             
         except Exception as e:
             print(f" {model_name} failed: {str(e)}")
@@ -354,7 +253,6 @@ def run_complete_pipeline():
             import traceback
             traceback.print_exc()
     
-    # Save results
     today = datetime.now().strftime('%Y-%m-%d')
     results_dir = os.path.join('training_plots', today)
     os.makedirs(results_dir, exist_ok=True)
@@ -366,14 +264,12 @@ def run_complete_pipeline():
     for name, result in results.items():
         if 'error' not in result:
             print(f"{name}:")
-            print(f"  CV MAE: {result['cv_mae']:.3f}°")
-            print(f"  Test MAE: {result['test_mae']:.3f}° - {'✓' if result['meets_requirements'] else '✗'}")
+            print(f"  CV MAE: {result['cv_mae']:.3f} deg")
+            print(f"  Test MAE: {result['test_mae']:.3f} deg - {'PASS' if result['meets_requirements'] else 'FAIL'}")
     
-    # Create visualization plots
-    print(f"\n📈 Generating training plots...")
+    print(f"\nGenerating training plots...")
     create_training_plots(results, training_history, results_dir)
-    
-    print(f"\n💾 Results and plots saved to: {results_dir}")
+    print(f"\nResults and plots saved to: {results_dir}")
     
     return results
 

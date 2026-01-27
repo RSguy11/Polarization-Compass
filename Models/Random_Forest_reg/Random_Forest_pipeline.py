@@ -124,6 +124,68 @@ class RandomForestPolarizationRegressor:
         
         return features
     
+    def fit_from_features(self, features: np.ndarray, azimuth: np.ndarray) -> Dict:
+        """Train the Random Forest model using pre-extracted features."""
+        print(f"Training with {features.shape[0]} samples, {features.shape[1]} features")
+        print("Preprocessing features...")
+        X = self.prepare_features(features)
+        print(f"Final feature matrix shape: {X.shape}")
+        print(f"Training Random Forest (n_estimators={self.n_estimators}, max_depth={self.max_depth})...")
+        self.regressor.fit(X, azimuth)
+        self.is_fitted = True
+        y_pred = self.regressor.predict(X)
+        metrics = {
+            'mae': np.rad2deg(mean_absolute_error(azimuth, y_pred)),
+            'rmse': np.rad2deg(np.sqrt(mean_squared_error(azimuth, y_pred))),
+            'r2': self.regressor.score(X, azimuth),
+            'n_samples': len(azimuth),
+            'n_features': X.shape[1],
+            'n_trees': self.n_estimators
+        }
+        self.training_metrics = metrics
+        print(f"Training completed!")
+        print(f"Training MAE: {metrics['mae']:.3f}°")
+        print(f"Training RMSE: {metrics['rmse']:.3f}°") 
+        print(f"Training R²: {metrics['r2']:.3f}")
+        return metrics
+    
+    def predict_from_features(self, features: np.ndarray) -> np.ndarray:
+        """Predict solar azimuth from pre-extracted features."""
+        if not self.is_fitted:
+            raise RuntimeError("Model must be fitted before prediction")
+        X = self.prepare_features(features)
+        return self.regressor.predict(X)
+    
+    def cross_validate_from_features(self, features: np.ndarray, azimuth: np.ndarray, cv_folds: int = 5) -> Dict:
+        """Perform k-fold cross-validation using pre-extracted features."""
+        from sklearn.model_selection import KFold
+        kf = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+        mae_scores, rmse_scores, r2_scores = [], [], []
+        print(f"Performing {cv_folds}-fold cross-validation...")
+        for fold, (train_idx, val_idx) in enumerate(kf.split(features), 1):
+            temp_model = RandomForestPolarizationRegressor(
+                n_estimators=self.n_estimators, max_depth=self.max_depth,
+                min_samples_split=self.min_samples_split, min_samples_leaf=self.min_samples_leaf
+            )
+            temp_model.fit_from_features(features[train_idx], azimuth[train_idx])
+            y_pred = temp_model.predict_from_features(features[val_idx])
+            mae_scores.append(np.rad2deg(mean_absolute_error(azimuth[val_idx], y_pred)))
+            rmse_scores.append(np.rad2deg(np.sqrt(mean_squared_error(azimuth[val_idx], y_pred))))
+            r2_scores.append(temp_model.regressor.score(temp_model.prepare_features(features[val_idx]), azimuth[val_idx]))
+            print(f"  Fold {fold}/{cv_folds}")
+            print(f"    MAE: {mae_scores[-1]:.3f}°, RMSE: {rmse_scores[-1]:.3f}°, R²: {r2_scores[-1]:.3f}")
+        results = {
+            'mae_mean': np.mean(mae_scores), 'mae_std': np.std(mae_scores),
+            'rmse_mean': np.mean(rmse_scores), 'rmse_std': np.std(rmse_scores),
+            'r2_mean': np.mean(r2_scores), 'r2_std': np.std(r2_scores)
+        }
+        print(f"\nCross-validation Results:")
+        print(f"MAE: {results['mae_mean']:.3f} ± {results['mae_std']:.3f}°")
+        print(f"RMSE: {results['rmse_mean']:.3f} ± {results['rmse_std']:.3f}°")
+        print(f"R²: {results['r2_mean']:.3f} ± {results['r2_std']:.3f}")
+        print(f"Meets blueprint requirements: {'✓' if results['mae_mean'] < 5.0 else '✗'}")
+        return results
+    
     def fit(self, dolp: np.ndarray, aolp: np.ndarray, azimuth: np.ndarray) -> Dict:
         """
         Train the Random Forest model.

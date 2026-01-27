@@ -3,6 +3,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, Optional, Tuple, List
 import sys
+import cv2
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -34,20 +35,22 @@ class PolarizationDataLoader:
         # Initialize extractor (lazy initialization - only when first needed)
         self._extractor = None
         
-        print(f"✓ PolarizationDataLoader initialized")
+        print(f"[OK] PolarizationDataLoader initialized")
         print(f"  Images: {len(self.image_files)}")
         print(f"  Labels: {len(self.labels_df)}")
         print(f"  Data range: {self.labels_df['timestamp'].min()} to {self.labels_df['timestamp'].max()}")
     
     @property
     def extractor(self):
+        """Lazy initialization of feature extractor - not needed anymore since we process per-image"""
+        # The new SpatialStokeDataLoader is initialized per-image, not per-directory
         if self._extractor is None:
             if self.extractor_class is None:
                 from Bens_Data_Import.Image_data_loaders.Spatial_Stoke_Loader.SpatialStokeLoader import SpatialStokeDataLoader
-                self._extractor = SpatialStokeDataLoader(self.image_folder)
+                self._extractor = SpatialStokeDataLoader  # Store the class, not instance
                 print(f"  Using default extractor: SpatialStokeDataLoader")
             else:
-                self._extractor = self.extractor_class(self.image_folder)
+                self._extractor = self.extractor_class
                 print(f"  Using custom extractor: {self.extractor_class.__name__}")
         return self._extractor
     
@@ -93,12 +96,40 @@ class PolarizationDataLoader:
             'up_velocity': float(row['up_velocity'])
         }
     
-    def _extract_features(self, image_path: Path) -> Optional[Dict[str, np.ndarray]]:
-        try:
-            result = self.extractor.get_item(image_path)
+    def _extract_features(self, image_path: Path, gains: Optional[Dict] = None, 
+                         global_frame_offset: Optional[float] = None) -> Optional[Dict[str, np.ndarray]]:
+        """
+        Extract polarization features from an image using the updated SpatialStokeDataLoader.
+        
+        Parameters:
+        -----------
+        image_path : Path
+            Path to the image file
+        gains : dict, optional
+            Calibration gains for each polarization angle
+        global_frame_offset : float, optional
+            Angle offset for solar principal plane transformation
             
-            # SpatialStokeDataLoader returns (dict, I0, I45, I90, I135, S0)
-            # Extract just the dict with aolp and dolp
+        Returns:
+        --------
+        dict with 'aolp' and 'dolp' arrays, or None if extraction fails
+        """
+        try:
+            # Load the image
+            img = cv2.imread(str(image_path), 0)
+            if img is None:
+                print(f"Warning: Failed to load image {image_path.name}")
+                return None
+            
+            # Create extractor instance for this specific image
+            extractor_class = self.extractor
+            extractor = extractor_class(img)
+            
+            # Get features with gains and global_frame_offset parameters
+            # SpatialStokeDataLoader.get_item() returns (dict, I0, I45, I90, I135, S0)
+            result = extractor.get_item(gains=gains, global_frame_offset=global_frame_offset)
+            
+            # Extract just the dict with aolp and dolp (first element of tuple)
             if isinstance(result, tuple):
                 features = result[0]
             else:
@@ -117,10 +148,28 @@ class PolarizationDataLoader:
             print(f"Warning: Feature extraction failed for {image_path.name}: {e}")
             return None
     
-    def get_item(self, index: int) -> Optional[Dict]:
+    def get_item(self, index: int, gains: Optional[Dict] = None, 
+                 global_frame_offset: Optional[float] = None) -> Optional[Dict]:
+        """
+        Get a single data sample with polarization features and labels.
+        
+        Parameters:
+        -----------
+        index : int
+            Index of the sample to retrieve
+        gains : dict, optional
+            Calibration gains for polarization channels
+        global_frame_offset : float, optional
+            Angle offset for solar principal plane transformation
+            
+        Returns:
+        --------
+        dict containing features, labels, and metadata, or None if failed
+        """
         image_path = self._get_image_path(index)
         
-        features = self._extract_features(image_path)
+        features = self._extract_features(image_path, gains=gains, 
+                                         global_frame_offset=global_frame_offset)
         if features is None:
             return None
         
