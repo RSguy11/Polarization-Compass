@@ -55,6 +55,49 @@ def load_batch_features(loader, indices, verbose=False):
         raise ValueError("No features were successfully extracted!")
 
 
+def calculate_sample_weights(azimuth_labels, n_bins=8):
+    """
+    Calculate sample weights based on azimuth distribution.
+    Rare azimuths get higher weights to balance training.
+    
+    Args:
+        azimuth_labels: Array of azimuth angles (0-360°)
+        n_bins: Number of bins to divide 360° into
+        
+    Returns:
+        weights: Array of normalized weights
+    """
+    # Bin azimuths into n_bins bins
+    bin_edges = np.linspace(0, 360, n_bins + 1)
+    bin_indices = np.digitize(azimuth_labels, bin_edges) - 1
+    bin_indices = np.clip(bin_indices, 0, n_bins - 1)
+    
+    # Count samples per bin
+    unique_bins, bin_counts = np.unique(bin_indices, return_counts=True)
+    
+    # Calculate weights: inverse frequency (rare bins get high weights)
+    # Avoid division by zero by using safe division
+    max_count = bin_counts.max()
+    weights = np.zeros_like(azimuth_labels, dtype=float)
+    
+    for bin_idx, count in zip(unique_bins, bin_counts):
+        mask = bin_indices == bin_idx
+        # Weight = max_count / count (higher for rarer bins)
+        weight_value = max_count / max(count, 1)  # Prevent division by zero
+        weights[mask] = weight_value
+    
+    # Normalize to [0.5, 2.0] range to avoid extreme weights
+    if weights.max() > weights.min():
+        weights = 0.5 + 1.5 * (weights - weights.min()) / (weights.max() - weights.min())
+    else:
+        weights = np.ones_like(weights)  # All equal if no variation
+    
+    # Ensure no NaN or inf values
+    weights = np.nan_to_num(weights, nan=1.0, posinf=2.0, neginf=0.5)
+    
+    return weights
+
+
 def run_complete_pipeline():
     """Run the complete model training pipeline for all three models."""
     
@@ -142,6 +185,12 @@ def run_complete_pipeline():
         )
     }
     
+    # Calculate sample weights based on azimuth distribution
+    print("\nCalculating sample weights for balanced training...")
+    train_weights = calculate_sample_weights(azimuth_train)
+    print(f"[OK] Sample weights calculated")
+    print(f"    Weight range: {train_weights.min():.3f} - {train_weights.max():.3f}")
+    
     for model_name, model in models.items():
         print(f"\nTraining {model_name}...")
         try:
@@ -177,10 +226,12 @@ def run_complete_pipeline():
                 subset_val_size = size - subset_train_size
                 subset_indices = np.random.choice(range(len(all_train_features)), subset_train_size, replace=False)
                 train_features = all_train_features[subset_indices]
+                subset_weights = train_weights[subset_indices]
                 
                 train_metrics_temp = model_temp.fit_from_features(
                     train_features, 
-                    azimuth_train[subset_indices]
+                    azimuth_train[subset_indices],
+                    sample_weight=subset_weights
                 )
                 if subset_val_size > 0:
                     remaining_indices = np.setdiff1d(np.arange(len(all_train_features)), subset_indices)
@@ -214,7 +265,7 @@ def run_complete_pipeline():
             }
             
             print(f"  Training final model on full training set ({train_size} samples)...")
-            train_metrics = model.fit_from_features(all_train_features, azimuth_train)
+            train_metrics = model.fit_from_features(all_train_features, azimuth_train, sample_weight=train_weights)
             
             print(f"  Evaluating on test set ({test_size} samples)...")
             test_predictions = model.predict_from_features(all_test_features)

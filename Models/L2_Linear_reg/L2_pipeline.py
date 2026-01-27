@@ -93,7 +93,7 @@ class L2PolarizationRegressor:
         
         return features_scaled
     
-    def fit_from_features(self, features: np.ndarray, azimuth: np.ndarray) -> Dict:
+    def fit_from_features(self, features: np.ndarray, azimuth: np.ndarray, sample_weight: Optional[np.ndarray] = None) -> Dict:
         """Train the L2 regression model using pre-extracted features."""
         print(f"Training with {features.shape[0]} samples, {features.shape[1]} features")
         print("Preprocessing features...")
@@ -101,7 +101,7 @@ class L2PolarizationRegressor:
         print(f"Final feature matrix shape: {X.shape}")
         print("Training Ridge regression model...")
         
-        self.regressor.fit(X, azimuth)
+        self.regressor.fit(X, azimuth, sample_weight=sample_weight)
         self.is_fitted = True
         
         y_pred = self.regressor.predict(X)

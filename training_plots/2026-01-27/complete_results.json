@@ -1,0 +1,35 @@
+{
+  "L2_Baseline": {
+    "training_mae": 0.020361558142065354,
+    "cv_mae": 13.123202298032865,
+    "cv_rmse": 26.243600231324898,
+    "best_val_mae": 12.58369988050906,
+    "best_val_rmse": 27.53195616547119,
+    "best_val_samples": 2358,
+    "test_mae": 12.721175279895592,
+    "test_rmse": 23.270413120374936,
+    "meets_requirements": false
+  },
+  "SVR_RBF": {
+    "training_mae": 5.643657328195436,
+    "cv_mae": 84.28362132380963,
+    "cv_rmse": 98.01686004213383,
+    "best_val_mae": 75.3975968147875,
+    "best_val_rmse": 93.63922295421365,
+    "best_val_samples": 250,
+    "test_mae": 84.40373445990157,
+    "test_rmse": 98.81008165249781,
+    "meets_requirements": false
+  },
+  "Random_Forest": {
+    "training_mae": 8.854971303502728,
+    "cv_mae": 17.14166905747379,
+    "cv_rmse": 34.64894880975476,
+    "best_val_mae": 17.909991210240253,
+    "best_val_rmse": 30.096170244735408,
+    "best_val_samples": 250,
+    "test_mae": 17.110122328367186,
+    "test_rmse": 33.8322493007637,
+    "meets_requirements": false
+  }
+}
