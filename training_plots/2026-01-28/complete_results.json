@@ -1,0 +1,46 @@
+{
+  "L2_Baseline": {
+    "training_mae": 27.333449895170432,
+    "cv_mae": 26.909242275728182,
+    "cv_rmse": 44.92324040557837,
+    "best_val_mae": 23.74321789294526,
+    "best_val_rmse": 26.78287523895397,
+    "best_val_samples": 20,
+    "test_mae": 29.8012204235754,
+    "test_rmse": 47.475089682848015,
+    "meets_requirements": false
+  },
+  "SVR_RBF": {
+    "training_mae": 10.000863116802833,
+    "cv_mae": 12.448365296235952,
+    "cv_rmse": 31.244393199317425,
+    "best_val_mae": 13.47020634278399,
+    "best_val_rmse": 23.80082813739616,
+    "best_val_samples": 50,
+    "test_mae": 12.9500127340466,
+    "test_rmse": 35.367385834259885,
+    "meets_requirements": false
+  },
+  "Random_Forest": {
+    "training_mae": 3.523853838315303,
+    "cv_mae": 8.073278753680835,
+    "cv_rmse": 24.745140156291754,
+    "best_val_mae": 9.571690658249677,
+    "best_val_rmse": 29.67952881402445,
+    "best_val_samples": 2358,
+    "test_mae": 7.320109271101877,
+    "test_rmse": 20.393991015757248,
+    "meets_requirements": false
+  },
+  "Gradient_Boosting": {
+    "training_mae": 0.6680484101399676,
+    "cv_mae": 5.9611627064004225,
+    "cv_rmse": 24.780120793730774,
+    "best_val_mae": 6.540246534105313,
+    "best_val_rmse": 28.374755882513522,
+    "best_val_samples": 2358,
+    "test_mae": 5.686080623989314,
+    "test_rmse": 25.61335955478522,
+    "meets_requirements": false
+  }
+}

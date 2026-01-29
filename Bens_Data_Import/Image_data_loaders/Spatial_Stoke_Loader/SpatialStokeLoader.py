@@ -41,10 +41,10 @@ class SpatialStokeDataLoader():
         """
         img = self.img
         
-        # ---- DRASTICALLY DOWNSCALE IMAGE ----
+        # ---- DOWNSCALE IMAGE (less aggressive) ----
         # Skip demosaicing entirely - just use binned raw values
         # This avoids massive temporary array allocations in polanalyser
-        scale_factor = 0.125  # 8x reduction: 2048→256, 2448→306
+        scale_factor = 0.5  # 2x reduction: 2048→1024, 2448→1224 (more spatial detail)
         new_height = int(img.shape[0] * scale_factor)
         new_width = int(img.shape[1] * scale_factor)
         img_binned = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
