@@ -716,20 +716,41 @@ def run_complete_pipeline():
     n_samples = len(all_indices)
     
     
-    print("\nShuffling & splitting data (80% train / 20% test)...")
-    np.random.seed(42)
-    shuffle_idx = np.random.permutation(n_samples)
-    shuffled_indices = [all_indices[i] for i in shuffle_idx]
-    azimuth = azimuth[shuffle_idx]
-    
-    test_size = int(n_samples * 0.2)
-    train_size = n_samples - test_size
-    train_indices = shuffled_indices[:train_size]
-    test_indices = shuffled_indices[train_size:]
-    azimuth_train = azimuth[:train_size]
-    azimuth_test = azimuth[train_size:]
-    
-    print(f"[OK] Train: {train_size} samples | Test: {test_size} samples")
+
+    # STRATIFIED AZIMUTH SPLIT: ensure test set covers all azimuths
+    print("\nStratified azimuth splitting (test set covers all azimuths)...")
+    azimuth_deg = np.rad2deg(azimuth)
+    n_bins = 18  # 20-degree bins
+    bins = np.linspace(0, 360, n_bins+1)
+    az_bin = np.digitize(azimuth_deg, bins, right=False) - 1
+    # Clamp last bin
+    az_bin[az_bin == n_bins] = n_bins-1
+    test_indices = []
+    train_indices = []
+    rng = np.random.default_rng(42)
+    for b in range(n_bins):
+        bin_idxs = [i for i, ab in enumerate(az_bin) if ab == b]
+        if len(bin_idxs) == 0:
+            continue
+        n_test = max(1, int(0.2 * len(bin_idxs)))
+        test_in_bin = rng.choice(bin_idxs, size=n_test, replace=False)
+        train_in_bin = [i for i in bin_idxs if i not in test_in_bin]
+        test_indices.extend([all_indices[i] for i in test_in_bin])
+        train_indices.extend([all_indices[i] for i in train_in_bin])
+    # Shuffle for randomness
+    rng.shuffle(train_indices)
+    rng.shuffle(test_indices)
+    azimuth_train_deg = np.array([all_labels[i] for i in train_indices])
+    azimuth_test_deg = np.array([all_labels[i] for i in test_indices])
+    # Convert to radians for model training
+    azimuth_train = np.deg2rad(azimuth_train_deg)
+    azimuth_test = np.deg2rad(azimuth_test_deg)
+    train_size = len(train_indices)
+    test_size = len(test_indices)
+    print(f"[OK] Train: {train_size} samples")
+    print(f"[OK] Test: {test_size} samples")
+    print(f"    Train azimuth range: {min(azimuth_train_deg):.1f}° → {max(azimuth_train_deg):.1f}°")
+    print(f"    Test azimuth range: {min(azimuth_test_deg):.1f}° → {max(azimuth_test_deg):.1f}°")
     
     print("\nCaching training features (468 SPATIAL+STATISTICAL features per sample)...")
     all_train_features = load_batch_features(loader, train_indices, verbose=True)
