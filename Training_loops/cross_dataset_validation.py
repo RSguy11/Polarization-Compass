@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from Bens_Data_Import.Image_data_loaders.Spatial_Stoke_Loader.SpatialStokeLoader import SpatialStokeDataLoader
+from Training_loops.run_all_models import extract_statistical_features_from_single_image
 
 def circular_error(pred, actual):
     """Calculate signed circular error in degrees"""
@@ -137,17 +138,22 @@ def main():
             print(f"  Warning: Could not load {sample['filename']}")
             continue
         
-        # Create extractor for this image and extract features
+        # Create extractor for this image and extract DoLP/AoLP
         try:
             extractor = SpatialStokeDataLoader(img)
-            # Get scalar features for ML
-            feature_dict = extractor.extract_scalar_features()
-            if feature_dict is None:
-                print(f"  Warning: Feature extraction failed for {sample['filename']}")
-                continue
+            result = extractor.get_item()
             
-            # Convert feature dict to array
-            features = np.array(list(feature_dict.values())).reshape(1, -1)
+            if isinstance(result, tuple):
+                pol_features = result[0]
+            else:
+                pol_features = result
+            
+            dolp = pol_features['dolp']
+            aolp = pol_features['aolp']
+            
+            # Extract statistical features (same as training)
+            features = extract_statistical_features_from_single_image(dolp, aolp)
+            features = features.reshape(1, -1)
         except Exception as e:
             print(f"  Warning: Failed to process {sample['filename']}: {e}")
             continue
