@@ -41,29 +41,25 @@ class SpatialStokeDataLoader():
         """
         img = self.img
         
-        # ---- DOWNSCALE IMAGE (less aggressive) ----
-        # Skip demosaicing entirely - just use binned raw values
-        # This avoids massive temporary array allocations in polanalyser
-        scale_factor = 0.5  # 2x reduction: 2048→1024, 2448→1224 (more spatial detail)
-        new_height = int(img.shape[0] * scale_factor)
-        new_width = int(img.shape[1] * scale_factor)
-        img_binned = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_AREA)
+        # ---- EXTRACT POLARIZATION CHANNELS FIRST (before any scaling) ----
+        # Must extract from raw mosaic BEFORE any interpolation/resizing
+        # Sony IMX250MZR polarization mosaic pattern (2x2 superpixels):
+        # [90°  45° ]
+        # [135° 0°  ]
+        I90_full = img[::2, ::2].astype(np.float32)      # Top-left pixels
+        I45_full = img[::2, 1::2].astype(np.float32)     # Top-right pixels  
+        I135_full = img[1::2, ::2].astype(np.float32)    # Bottom-left pixels
+        I0_full = img[1::2, 1::2].astype(np.float32)     # Bottom-right pixels
         
-        # ---- MANUAL DEMOSAICING (NO POLANALYSER) ----
-        # Bayer/polarization mosaic: extract channels manually
-        # For Polarization mosaic with 2x2 pattern (I0, I45, I90, I135):
-        # Skip demosaicing library entirely - just bin the raw sensor values
-        # This is equivalent to averaging over local neighborhoods
-        I0 = img_binned[::2, ::2].astype(np.float32)      # Top-left pixels
-        I45 = img_binned[::2, 1::2].astype(np.float32)    # Top-right pixels  
-        I90 = img_binned[1::2, ::2].astype(np.float32)    # Bottom-left pixels
-        I135 = img_binned[1::2, 1::2].astype(np.float32)  # Bottom-right pixels
+        # ---- NOW DOWNSCALE EACH CHANNEL SEPARATELY ----
+        scale_factor = 0.5  # 2x reduction from half-res channels
+        new_height = int(I0_full.shape[0] * scale_factor)
+        new_width = int(I0_full.shape[1] * scale_factor)
         
-        # Convert to float32 for processing
-        I0 = I0.astype(np.float32)
-        I45 = I45.astype(np.float32)
-        I90 = I90.astype(np.float32)
-        I135 = I135.astype(np.float32)
+        I0 = cv2.resize(I0_full, (new_width, new_height), interpolation=cv2.INTER_AREA)
+        I45 = cv2.resize(I45_full, (new_width, new_height), interpolation=cv2.INTER_AREA)
+        I90 = cv2.resize(I90_full, (new_width, new_height), interpolation=cv2.INTER_AREA)
+        I135 = cv2.resize(I135_full, (new_width, new_height), interpolation=cv2.INTER_AREA)
 
         # ---- APPLY CALIBRATION ----
         if gains is not None:

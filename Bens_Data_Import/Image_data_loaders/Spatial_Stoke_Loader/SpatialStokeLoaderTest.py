@@ -49,13 +49,21 @@ def main():
     aop_gt = load_dat_file(TEST_DATA_DIR / "aop_global_frame.dat", (1024, 1224))
     dop_gt = load_dat_file(TEST_DATA_DIR / "dop.dat", (1024, 1224))
     
-    # Downsample sensor frame to match ground truth resolution for offset calculation
-    aolp_sensor_downsampled = aolp_raw_sensor[::2, ::2]  # Simple downsampling
-    dolp_downsampled = dolp_raw[::2, ::2]
+    print(f"Ground truth shapes - AoP: {aop_gt.shape}, DoP: {dop_gt.shape}")
+    
+    # Resize ground truth to match extracted data shape (loader uses internal scaling)
+    extracted_shape = dolp_raw.shape
+    if dop_gt.shape != extracted_shape:
+        print(f"Resizing ground truth from {dop_gt.shape} to match extracted {extracted_shape}")
+        dop_gt_resized = cv2.resize(dop_gt.astype(np.float32), (extracted_shape[1], extracted_shape[0]), interpolation=cv2.INTER_LINEAR)
+        aop_gt_resized = cv2.resize(aop_gt.astype(np.float32), (extracted_shape[1], extracted_shape[0]), interpolation=cv2.INTER_LINEAR)
+    else:
+        dop_gt_resized = dop_gt
+        aop_gt_resized = aop_gt
     
     # Calculate global offset from reliable pixels
     dolp_min = 0.1  # Use higher threshold for offset calculation
-    valid_mask = (dolp_downsampled > dolp_min) & (dop_gt > dolp_min)
+    valid_mask = (dolp_raw > dolp_min) & (dop_gt_resized > dolp_min)
     
     if np.count_nonzero(valid_mask) > 1000:
         # For solar principal plane transformation, we just need to enable it

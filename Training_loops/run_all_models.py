@@ -761,27 +761,16 @@ def run_complete_pipeline():
             alpha=0.1
         ),
         
-        # SVR with tuned hyperparameters (best performer!)
-        'SVR_Tuned': CircularRegressionWrapper(
+        # SVR Circular - the original that achieved 2.46° (RESTORED)
+        'SVR_Circular': CircularRegressionWrapper(
             SVR,
-            C=100.0,         # Higher C = less regularization, more complex boundary
-            gamma=0.01,      # Lower gamma = smoother decision boundary
-            epsilon=0.001,   # Tighter epsilon tube
-            kernel='rbf'
-        ),
-        
-        # SVR with feature selection to remove noise
-        'SVR_FeatureSelect': CircularRegressionWrapper(
-            SVR,
-            use_feature_selection=True,
-            k_best=150,      # Keep top 150 most informative features
             C=50.0,
-            gamma='scale',
+            gamma='scale',   # Auto-scale gamma
             epsilon=0.01,
             kernel='rbf'
         ),
         
-        # RF with more trees and bagging for stability
+        # RF with more trees and deeper for best performance
         'RF_Enhanced': CircularRegressionWrapper(
             RandomForestRegressor,
             n_estimators=500,   # More trees
@@ -795,7 +784,7 @@ def run_complete_pipeline():
         
         # Ensemble of best models
         'Ensemble': EnsembleCircularModel([
-            ('SVR', SVR, {'C': 100.0, 'gamma': 0.01, 'epsilon': 0.001, 'kernel': 'rbf'}),
+            ('SVR', SVR, {'C': 50.0, 'gamma': 'scale', 'epsilon': 0.01, 'kernel': 'rbf'}),
             ('RF', RandomForestRegressor, {'n_estimators': 300, 'max_depth': 15, 'random_state': 42, 'n_jobs': -1}),
             ('Ridge', Ridge, {'alpha': 0.1}),
         ]),
