@@ -4,6 +4,7 @@ rosbag2_2025_11_24-10_37_35/
 group48_test/
 rmc/
 new_test_data/
+CAPSTONE_LIVE_DATA/
 
 # Python
 __pycache__/
