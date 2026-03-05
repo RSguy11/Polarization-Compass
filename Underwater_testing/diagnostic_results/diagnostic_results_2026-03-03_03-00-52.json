@@ -1,0 +1,128 @@
+{
+  "azimuth_distribution": {
+    "min": 165.00108945817692,
+    "max": 249.3090052967442,
+    "span": 84.30791583856728,
+    "mean": 217.099352275487,
+    "std": 21.25901233702212,
+    "mean_baseline_mae": 17.952024912773766,
+    "coverage_pct": 23.418865510713132
+  },
+  "cross_session": {
+    "train_june23_test_june24_mae": 23.130554278246734,
+    "train_june24_test_june23_mae": 44.566007038686486
+  },
+  "permutation_test": {
+    "burst_split_real_mae": 0.21160536374276512,
+    "shuffled_label_mae": 20.513848597553437,
+    "mean_baseline_mae": 19.172069503648707,
+    "train_samples": 1645,
+    "test_samples": 400
+  },
+  "feature_importances": [
+    {
+      "rank": 1,
+      "feature": "dolp_kurt",
+      "importance": 0.21994489196381856
+    },
+    {
+      "rank": 2,
+      "feature": "grid_dcross_3",
+      "importance": 0.09453864522992105
+    },
+    {
+      "rank": 3,
+      "feature": "grid_dcross_77",
+      "importance": 0.0750027843826092
+    },
+    {
+      "rank": 4,
+      "feature": "grid_dcross_15",
+      "importance": 0.04145705640330303
+    },
+    {
+      "rank": 5,
+      "feature": "grid_dolp_25",
+      "importance": 0.04137977476551298
+    },
+    {
+      "rank": 6,
+      "feature": "grid_dcross_30",
+      "importance": 0.02737760019992256
+    },
+    {
+      "rank": 7,
+      "feature": "grid_dcross_22",
+      "importance": 0.027318721631041494
+    },
+    {
+      "rank": 8,
+      "feature": "grid_dcross_73",
+      "importance": 0.026188248597718098
+    },
+    {
+      "rank": 9,
+      "feature": "grid_dcross_25",
+      "importance": 0.02082256456604823
+    },
+    {
+      "rank": 10,
+      "feature": "grid_dcross_7",
+      "importance": 0.02080979910504237
+    },
+    {
+      "rank": 11,
+      "feature": "grid_dolp_5",
+      "importance": 0.020777302708827463
+    },
+    {
+      "rank": 12,
+      "feature": "dolp_skew",
+      "importance": 0.020636783645454244
+    },
+    {
+      "rank": 13,
+      "feature": "grid_cos_74",
+      "importance": 0.019206233620823136
+    },
+    {
+      "rank": 14,
+      "feature": "grid_scross_65",
+      "importance": 0.013810928927368751
+    },
+    {
+      "rank": 15,
+      "feature": "grid_sin_15",
+      "importance": 0.013731841504944997
+    },
+    {
+      "rank": 16,
+      "feature": "grid_cos_8",
+      "importance": 0.013720750365424937
+    },
+    {
+      "rank": 17,
+      "feature": "grid_sin_21",
+      "importance": 0.013621950448355246
+    },
+    {
+      "rank": 18,
+      "feature": "grid_cos_23",
+      "importance": 0.013601118612101415
+    },
+    {
+      "rank": 19,
+      "feature": "grid_sin_2",
+      "importance": 0.011559907655309922
+    },
+    {
+      "rank": 20,
+      "feature": "grid_cos_11",
+      "importance": 0.009701451582395043
+    }
+  ],
+  "verdict": {
+    "shuffled_beats_baseline": false,
+    "cross_session_generalizes": false
+  }
+}

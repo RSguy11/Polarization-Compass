@@ -1,0 +1,205 @@
+Feature Improvement Tests — 2026-03-03 12:55:28
+Report: C:\Users\naesl\Polarization-Compass\Underwater_testing\diagnostic_results\feature_improvement_2026-03-03_12-55-28.txt
+
+[OK] UnderwaterDataLoader initialized
+  Data root:  C:\Users\naesl\Polarization-Compass\Capstone_live_data
+  Samples:    8,178
+  Sessions:   2
+  Runs:       13
+  Bursts:     265
+  Azimuth:    165.0° – 249.3° (mean 217.1°)
+Subsampling: 2045 of 8178 frames
+
+Extracting features...
+    extract 200/2045...
+    extract 400/2045...
+    extract 600/2045...
+    extract 800/2045...
+    extract 1000/2045...
+    extract 1200/2045...
+    extract 1400/2045...
+    extract 1600/2045...
+    extract 1800/2045...
+    extract 2000/2045...
+Extracted 2045 features (468 dims)
+
+Split sizes:
+  June23→June24: train=1257, test=788
+  June24→June23: train=788, test=1257
+  Burst-split: train=1645, test=400
+
+======================================================================
+BASELINE: Constant mean prediction
+======================================================================
+  June23→June24: MAE = 35.42°
+  June24→June23: MAE = 35.42°
+  Burst-split: MAE = 19.17°
+
+======================================================================
+CONFIG A: All 468 features (current baseline)
+======================================================================
+  June23→June24:
+Training CIRCULAR regression with 1257 samples, 468 features
+Training sin model...
+Training cos model...
+Training MAE: 0.015°
+Training RMSE: 0.080°
+    MAE = 23.13°,  Median = 19.79°,  P90 = 48.70°,  Max = 71.12°
+  June24→June23:
+Training CIRCULAR regression with 788 samples, 468 features
+Training sin model...
+Training cos model...
+Training MAE: 0.028°
+Training RMSE: 0.079°
+    MAE = 44.57°,  Median = 46.69°,  P90 = 58.81°,  Max = 61.32°
+  Burst-split:
+Training CIRCULAR regression with 1645 samples, 468 features
+Training sin model...
+Training cos model...
+Training MAE: 0.034°
+Training RMSE: 0.267°
+    MAE = 0.21°,  Median = 0.14°,  P90 = 0.58°,  Max = 1.49°
+
+======================================================================
+CONFIG B: AoLP-only features (183 features)
+======================================================================
+  June23→June24:
+Training CIRCULAR regression with 1257 samples, 183 features
+Training sin model...
+Training cos model...
+Training MAE: 0.015°
+Training RMSE: 0.073°
+    MAE = 24.29°,  Median = 21.52°,  P90 = 48.85°,  Max = 58.98°
+  June24→June23:
+Training CIRCULAR regression with 788 samples, 183 features
+Training sin model...
+Training cos model...
+Training MAE: 0.038°
+Training RMSE: 0.154°
+    MAE = 53.83°,  Median = 58.77°,  P90 = 67.49°,  Max = 69.06°
+  Burst-split:
+Training CIRCULAR regression with 1645 samples, 183 features
+Training sin model...
+Training cos model...
+Training MAE: 0.037°
+Training RMSE: 0.311°
+    MAE = 0.21°,  Median = 0.12°,  P90 = 0.50°,  Max = 1.93°
+
+======================================================================
+CONFIG C: All 468 features + per-run Z-score normalization
+======================================================================
+  June23→June24:
+Training CIRCULAR regression with 1257 samples, 468 features
+Training sin model...
+Training cos model...
+Training MAE: 0.098°
+Training RMSE: 0.658°
+    MAE = 26.85°,  Median = 22.30°,  P90 = 57.88°,  Max = 77.18°
+  June24→June23:
+Training CIRCULAR regression with 788 samples, 468 features
+Training sin model...
+Training cos model...
+Training MAE: 0.249°
+Training RMSE: 0.942°
+    MAE = 47.27°,  Median = 55.09°,  P90 = 78.76°,  Max = 82.29°
+  Burst-split:
+Training CIRCULAR regression with 1645 samples, 468 features
+Training sin model...
+Training cos model...
+Training MAE: 0.364°
+Training RMSE: 1.449°
+    MAE = 1.02°,  Median = 0.43°,  P90 = 2.25°,  Max = 24.83°
+
+======================================================================
+CONFIG D: AoLP-only (183) + per-run normalization
+======================================================================
+  June23→June24:
+Training CIRCULAR regression with 1257 samples, 183 features
+Training sin model...
+Training cos model...
+Training MAE: 0.142°
+Training RMSE: 0.450°
+    MAE = 25.08°,  Median = 22.19°,  P90 = 45.37°,  Max = 60.99°
+  June24→June23:
+Training CIRCULAR regression with 788 samples, 183 features
+Training sin model...
+Training cos model...
+Training MAE: 0.585°
+Training RMSE: 1.464°
+    MAE = 41.66°,  Median = 43.76°,  P90 = 59.57°,  Max = 67.74°
+  Burst-split:
+Training CIRCULAR regression with 1645 samples, 183 features
+Training sin model...
+Training cos model...
+Training MAE: 0.490°
+Training RMSE: 1.500°
+    MAE = 2.55°,  Median = 0.76°,  P90 = 7.20°,  Max = 25.49°
+
+======================================================================
+CONFIG E: All features + per-run norm + PCA(30) + shallow RF (depth=8, 100 trees)
+======================================================================
+  June23→June24:
+Training CIRCULAR regression with 1257 samples, 30 features
+Training sin model...
+Training cos model...
+Training MAE: 0.690°
+Training RMSE: 1.094°
+    MAE = 31.13°,  Median = 30.00°,  P90 = 47.70°,  Max = 66.70°
+  June24→June23:
+Training CIRCULAR regression with 788 samples, 30 features
+Training sin model...
+Training cos model...
+Training MAE: 1.000°
+Training RMSE: 2.043°
+    MAE = 44.28°,  Median = 44.69°,  P90 = 62.27°,  Max = 68.36°
+  Burst-split:
+Training CIRCULAR regression with 1645 samples, 30 features
+Training sin model...
+Training cos model...
+Training MAE: 2.483°
+Training RMSE: 3.877°
+    MAE = 5.26°,  Median = 2.71°,  P90 = 14.35°,  Max = 35.86°
+
+======================================================================
+CONFIG F: AoLP + cross-product features (347) + per-run norm
+======================================================================
+  June23→June24:
+Training CIRCULAR regression with 1257 samples, 347 features
+Training sin model...
+Training cos model...
+Training MAE: 0.136°
+Training RMSE: 0.430°
+    MAE = 25.34°,  Median = 22.10°,  P90 = 45.55°,  Max = 61.01°
+  June24→June23:
+Training CIRCULAR regression with 788 samples, 347 features
+Training sin model...
+Training cos model...
+Training MAE: 0.603°
+Training RMSE: 1.645°
+    MAE = 33.78°,  Median = 33.00°,  P90 = 54.71°,  Max = 64.49°
+  Burst-split:
+Training CIRCULAR regression with 1645 samples, 347 features
+Training sin model...
+Training cos model...
+Training MAE: 0.489°
+Training RMSE: 1.483°
+    MAE = 2.29°,  Median = 0.83°,  P90 = 5.87°,  Max = 25.73°
+
+======================================================================
+COMPARISON SUMMARY (MAE in degrees)
+======================================================================
+  Config                   June23→June24   June24→June23     Burst-split
+  ----------------------------------------------------------------------
+  Mean baseline                   35.42°          35.42°          19.17°
+  A: All 468                      23.13°          44.57°           0.21°
+  B: AoLP-only                    24.29°          53.83°           0.21°
+  C: All+RunNorm                  26.85°          47.27°           1.02°
+  D: AoLP+RunNorm                 25.08°          41.66°           2.55°
+  E: PCA+Shallow                  31.13°          44.28°           5.26°
+  F: AoLP+Cross+Norm              25.34°          33.78°           2.29°
+
+  Best for June23→June24: A: All 468 (MAE = 23.13°)
+  Best for June24→June23: F: AoLP+Cross+Norm (MAE = 33.78°)
+
+  Results saved to: C:\Users\naesl\Polarization-Compass\Underwater_testing\diagnostic_results\feature_improvement_2026-03-03_12-55-28.json
+  Report saved to:  C:\Users\naesl\Polarization-Compass\Underwater_testing\diagnostic_results\feature_improvement_2026-03-03_12-55-28.txt

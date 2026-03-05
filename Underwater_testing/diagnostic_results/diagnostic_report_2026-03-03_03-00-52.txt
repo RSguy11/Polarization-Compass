@@ -1,0 +1,128 @@
+Diagnostic Report — 2026-03-03 03:00:52
+Report saved to: C:\Users\naesl\Polarization-Compass\Underwater_testing\diagnostic_results\diagnostic_report_2026-03-03_03-00-52.txt
+
+[OK] UnderwaterDataLoader initialized
+  Data root:  C:\Users\naesl\Polarization-Compass\Capstone_live_data
+  Samples:    8,178
+  Sessions:   2
+  Runs:       13
+  Bursts:     265
+  Azimuth:    165.0° – 249.3° (mean 217.1°)
+
+======================================================================
+TEST 0: AZIMUTH DISTRIBUTION ANALYSIS
+======================================================================
+  Total range:  165.0° – 249.3°  (span = 84.3°)
+  Mean:         217.1°
+  Std:          21.3°
+  A random guess of the mean would give MAE = 18.0°
+  Full 360° range?  NO — only 84° of 360° covered
+
+  June_23: 210.0° – 249.3° (span=39.3°, n=5025)
+  June_24: 165.0° – 218.5° (span=53.5°, n=3153)
+
+Using subsample of 2045 frames for speed
+
+Extracting features for subsample...
+    subsample 200/2045...
+    subsample 400/2045...
+    subsample 600/2045...
+    subsample 800/2045...
+    subsample 1000/2045...
+    subsample 1200/2045...
+    subsample 1400/2045...
+    subsample 1600/2045...
+    subsample 1800/2045...
+    subsample 2000/2045...
+Extracted 2045 features
+
+======================================================================
+TEST 1: CROSS-SESSION (Train June_23 → Test June_24)
+======================================================================
+  Train: 1257 samples (June_23)
+  Test:  788 samples (June_24)
+  Train azimuth: 210.0° – 249.3°
+  Test  azimuth: 165.0° – 218.5°
+Training CIRCULAR regression with 1257 samples, 468 features
+Training sin model...
+Training cos model...
+Training MAE: 0.015°
+Training RMSE: 0.080°
+  Cross-session RF: MAE = 23.1306°
+
+Training CIRCULAR regression with 788 samples, 468 features
+Training sin model...
+Training cos model...
+Training MAE: 0.028°
+Training RMSE: 0.079°
+  Reverse (Train June_24 → Test June_23): MAE = 44.5660°
+
+======================================================================
+TEST 2: PERMUTATION TEST (shuffled labels)
+======================================================================
+  If the model still performs well with shuffled labels,
+  the features encode time, not polarization.
+
+  Burst-level split: 1645 train, 400 test
+Training CIRCULAR regression with 1645 samples, 468 features
+Training sin model...
+Training cos model...
+Training MAE: 0.034°
+Training RMSE: 0.267°
+  Real labels: MAE = 0.2116°
+Training CIRCULAR regression with 1645 samples, 468 features
+Training sin model...
+Training cos model...
+Training MAE: 9.449°
+Training RMSE: 10.948°
+  Shuffled labels: MAE = 20.5138°
+  Constant mean baseline: MAE = 19.1721°
+
+======================================================================
+TEST 3: TOP FEATURE IMPORTANCES
+======================================================================
+Training CIRCULAR regression with 1645 samples, 468 features
+Training sin model...
+Training cos model...
+Training MAE: 0.033°
+Training RMSE: 0.281°
+
+  Rank  Feature                   Importance
+  ------------------------------------------
+  1     dolp_kurt                     0.2199
+  2     grid_dcross_3                 0.0945
+  3     grid_dcross_77                0.0750
+  4     grid_dcross_15                0.0415
+  5     grid_dolp_25                  0.0414
+  6     grid_dcross_30                0.0274
+  7     grid_dcross_22                0.0273
+  8     grid_dcross_73                0.0262
+  9     grid_dcross_25                0.0208
+  10    grid_dcross_7                 0.0208
+  11    grid_dolp_5                   0.0208
+  12    dolp_skew                     0.0206
+  13    grid_cos_74                   0.0192
+  14    grid_scross_65                0.0138
+  15    grid_sin_15                   0.0137
+  16    grid_cos_8                    0.0137
+  17    grid_sin_21                   0.0136
+  18    grid_cos_23                   0.0136
+  19    grid_sin_2                    0.0116
+  20    grid_cos_11                   0.0097
+
+
+======================================================================
+DIAGNOSTIC SUMMARY
+======================================================================
+  Azimuth coverage:        84° of 360° (23%)
+  Mean-baseline MAE:       19.17°
+  Burst-split real MAE:    0.2116°
+  Shuffled-label MAE:      20.5138°
+  Cross-session MAE:       23.1306°
+
+  Shuffled labels perform like baseline → model IS using polarization signal
+
+  Cross-session MAE > 5° → model does NOT generalize across days
+
+  Structured results saved to: C:\Users\naesl\Polarization-Compass\Underwater_testing\diagnostic_results\diagnostic_results_2026-03-03_03-00-52.json
+  Full text report saved to:   C:\Users\naesl\Polarization-Compass\Underwater_testing\diagnostic_results\diagnostic_report_2026-03-03_03-00-52.txt
