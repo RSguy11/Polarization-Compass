@@ -29,6 +29,7 @@ RF_results/*.pkl
 model_comparison_results/
 phase1_results/
 training_logs/
+Underwater_testing/svm_analysis_results/
 
 # Large Data Files
 *.mat

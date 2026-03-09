@@ -69,7 +69,7 @@ def test_svm_classification():
     
     print("REAL DATA SVM CLASSIFICATION TEST")
     print("=" * 60)
-    print("Cross-Session Testing: June_23 → June_24 (Correct Setup)")
+    print("Cross-Session Testing: feb_23 → Mar_09 (Correct Setup)")
     if SAMPLING_MODE == "advanced":
         print("Sampling: Advanced (5th-8th frames per burst)")
     elif SAMPLING_MODE == "last":
@@ -93,7 +93,7 @@ def test_svm_classification():
     print(f"  Azimuth range: {all_labels.min():.1f}° - {all_labels.max():.1f}°")
     print(f"  Coverage: {all_labels.max() - all_labels.min():.1f}° of 360°")
     
-    for sess in ["June_23", "June_24", "Mar_09"]:
+    for sess in ["feb_23", "feb_24", "Mar_09"]:
         mask = all_sessions == sess
         if mask.sum() > 0:
             az = all_labels[mask]
@@ -173,14 +173,14 @@ def test_svm_classification():
     print(f"Feature extraction complete: {sub_feat.shape}\\n")
     
     # ═════════════════════════════════════════════════════════════════════
-    # CROSS-SESSION SPLIT (Train June_23, Test June_24) - CORRECTED DIRECTION
+    # CROSS-SESSION SPLIT (Train feb_23, Test Mar_09) - CORRECTED DIRECTION
     # ═════════════════════════════════════════════════════════════════════
     print("=" * 60)
-    print("CROSS-SESSION SVM TESTING (Train June_23 → Test June_24)")
+    print("CROSS-SESSION SVM TESTING (Train feb_23 → Test Mar_09)")
     print("=" * 60)
     
-    train_mask = sub_sessions == "June_23"  # Training data (was Day_2)
-    test_mask = sub_sessions == "June_24"   # Test data (was Day_1)
+    train_mask = sub_sessions == "feb_23"  # Training data 
+    test_mask = sub_sessions == "Mar_09"   # Test data 
     
     # Debug session information
     print(f"Available sessions: {np.unique(sub_sessions)}")
@@ -190,8 +190,8 @@ def test_svm_classification():
     
     if train_mask.sum() == 0 or test_mask.sum() == 0:
         print("ERROR: Insufficient data for cross-session testing")
-        print(f"  - Train (June_23): {train_mask.sum()} samples")
-        print(f"  - Test (June_24): {test_mask.sum()} samples")
+        print(f"  - Train (feb_23): {train_mask.sum()} samples")
+        print(f"  - Test (Mar_09): {test_mask.sum()} samples")
         return {}
     
     X_train = sub_feat[train_mask]
@@ -199,8 +199,8 @@ def test_svm_classification():
     y_train = sub_labels[train_mask]
     y_test = sub_labels[test_mask]
     
-    print(f"  Training (June_23):    {X_train.shape[0]:3d} samples")
-    print(f"  Testing (June_24):     {X_test.shape[0]:3d} samples")
+    print(f"  Training (feb_23):    {X_train.shape[0]:3d} samples")
+    print(f"  Testing (Mar_09):     {X_test.shape[0]:3d} samples")
     print(f"  Feature dimensions:   {X_train.shape[1]} features")
     print(f"  Train azimuth range:  {y_train.min():.1f}° - {y_train.max():.1f}°")
     print(f"  Test azimuth range:   {y_test.min():.1f}° - {y_test.max():.1f}°")

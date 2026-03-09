@@ -5,7 +5,7 @@ or just memorizing temporal/lighting patterns?
 Test 1: PERMUTATION TEST — shuffle labels, retrain. If MAE stays low,
         the features themselves encode time-of-day, not polarization.
 
-Test 2: CROSS-SESSION — train on June_23, test on June_24 (different day).
+Test 2: CROSS-SESSION — train on feb_23, test on feb_24 (different day).
         This is the only honest generalization test.
 
 Test 3: AZIMUTH RANGE CHECK — how narrow is the label distribution?
@@ -129,7 +129,7 @@ def main():
         "coverage_pct": float((all_labels.max() - all_labels.min()) / 360 * 100),
     }
 
-    for sess in ["June_23", "June_24"]:
+    for sess in ["feb_23", "feb_24"]:
         mask = all_sessions == sess
         az = all_labels[mask]
         print(f"  {sess}: {az.min():.1f}° – {az.max():.1f}° "
@@ -150,14 +150,14 @@ def main():
     print(f"Extracted {len(sub_feat)} features\n")
 
     # ═════════════════════════════════════════════════════════════════════
-    # TEST 1: CROSS-SESSION SPLIT (train June_23, test June_24)
+    # TEST 1: CROSS-SESSION SPLIT (train feb_23, test feb_24)
     # ═════════════════════════════════════════════════════════════════════
     print("=" * 70)
-    print("TEST 1: CROSS-SESSION (Train June_23 → Test June_24)")
+    print("TEST 1: CROSS-SESSION (Train feb_23 → Test feb_24)")
     print("=" * 70)
 
-    train_mask = sub_sessions == "June_23"
-    test_mask = sub_sessions == "June_24"
+    train_mask = sub_sessions == "feb_23"
+    test_mask = sub_sessions == "feb_24"
 
     if train_mask.sum() > 0 and test_mask.sum() > 0:
         train_feat_cs = sub_feat[train_mask]
@@ -165,8 +165,8 @@ def main():
         train_az_cs = sub_labels[train_mask]
         test_az_cs = sub_labels[test_mask]
 
-        print(f"  Train: {train_mask.sum()} samples (June_23)")
-        print(f"  Test:  {test_mask.sum()} samples (June_24)")
+        print(f"  Train: {train_mask.sum()} samples (feb_23)")
+        print(f"  Test:  {test_mask.sum()} samples (feb_24)")
         print(f"  Train azimuth: {np.rad2deg(train_az_cs).min():.1f}° – {np.rad2deg(train_az_cs).max():.1f}°")
         print(f"  Test  azimuth: {np.rad2deg(test_az_cs).min():.1f}° – {np.rad2deg(test_az_cs).max():.1f}°")
 
@@ -177,19 +177,19 @@ def main():
         print("  Not enough data in both sessions")
         mae_cs = None
 
-    # Also test reverse: train June_24, test June_23
+    # Also test reverse: train feb_24, test feb_23
     print()
     mae_cs_rev = None
     if test_mask.sum() > 0 and train_mask.sum() > 0:
         mae_cs_rev, _, _ = train_and_eval(
             sub_feat[test_mask], sub_labels[test_mask],
             sub_feat[train_mask], sub_labels[train_mask],
-            "Reverse (Train June_24 → Test June_23)")
+            "Reverse (Train feb_24 → Test feb_23)")
     print()
 
     results_json["cross_session"] = {
-        "train_june23_test_june24_mae": float(mae_cs) if mae_cs is not None else None,
-        "train_june24_test_june23_mae": float(mae_cs_rev) if mae_cs_rev is not None else None,
+        "train_feb23_test_feb24_mae": float(mae_cs) if mae_cs is not None else None,
+        "train_feb24_test_feb23_mae": float(mae_cs_rev) if mae_cs_rev is not None else None,
     }
 
     # ═════════════════════════════════════════════════════════════════════

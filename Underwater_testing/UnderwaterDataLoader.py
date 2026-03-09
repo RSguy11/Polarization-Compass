@@ -8,9 +8,9 @@ with solar azimuth/elevation labels from solar_labels.parquet.
 Directory structure expected:
     Capstone_live_data/
     ├── solar_labels.parquet
-    ├── June_23/
+    ├── feb_23/
     │   └── run_*/burst_*/*.png
-    └── June_24/
+    └── feb_24/
         └── run_*/burst_*/*.png
 """
 

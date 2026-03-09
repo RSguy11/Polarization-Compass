@@ -18,8 +18,8 @@ TEST 0: AZIMUTH DISTRIBUTION ANALYSIS
   A random guess of the mean would give MAE = 18.0°
   Full 360° range?  NO — only 84° of 360° covered
 
-  June_23: 210.0° – 249.3° (span=39.3°, n=5025)
-  June_24: 165.0° – 218.5° (span=53.5°, n=3153)
+  feb_23: 210.0° – 249.3° (span=39.3°, n=5025)
+  feb_24: 165.0° – 218.5° (span=53.5°, n=3153)
 
 Using subsample of 2045 frames for speed
 
@@ -37,10 +37,10 @@ Extracting features for subsample...
 Extracted 2045 features
 
 ======================================================================
-TEST 1: CROSS-SESSION (Train June_23 → Test June_24)
+TEST 1: CROSS-SESSION (Train feb_23 → Test feb_24)
 ======================================================================
-  Train: 1257 samples (June_23)
-  Test:  788 samples (June_24)
+  Train: 1257 samples (feb_23)
+  Test:  788 samples (feb_24)
   Train azimuth: 210.0° – 249.3°
   Test  azimuth: 165.0° – 218.5°
 Training CIRCULAR regression with 1257 samples, 468 features
@@ -55,7 +55,7 @@ Training sin model...
 Training cos model...
 Training MAE: 0.028°
 Training RMSE: 0.079°
-  Reverse (Train June_24 → Test June_23): MAE = 44.5660°
+  Reverse (Train feb_24 → Test feb_23): MAE = 44.5660°
 
 ======================================================================
 TEST 2: PERMUTATION TEST (shuffled labels)

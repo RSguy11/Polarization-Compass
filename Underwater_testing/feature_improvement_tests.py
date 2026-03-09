@@ -12,8 +12,8 @@ Configurations:
   E) Reduced complexity (PCA + shallow RF)
 
 Each is tested with:
-  - Cross-session: Train June_23 → Test June_24
-  - Cross-session: Train June_24 → Test June_23
+  - Cross-session: Train feb_23 → Test feb_24
+  - Cross-session: Train feb_24 → Test feb_23
   - Burst-level split (both days combined, for reference)
 """
 
@@ -241,8 +241,8 @@ def main():
     # ═══════════════════════════════════════════════════════════════════
     # Define splits
     # ═══════════════════════════════════════════════════════════════════
-    j23_mask = sub_sessions == "June_23"
-    j24_mask = sub_sessions == "June_24"
+    j23_mask = sub_sessions == "feb_23"
+    j24_mask = sub_sessions == "feb_24"
 
     # Burst-level split (both days mixed, 80/20)
     sub_bursts = np.array([loader._get_labels(i)["burst"] for i in sub_valid])
@@ -254,8 +254,8 @@ def main():
     burst_test = ~burst_train
 
     splits = {
-        "June23→June24": (j23_mask, j24_mask),
-        "June24→June23": (j24_mask, j23_mask),
+        "feb23→feb24": (j23_mask, j24_mask),
+        "feb24→feb23": (j24_mask, j23_mask),
         "Burst-split":   (burst_train, burst_test),
     }
 
@@ -414,19 +414,19 @@ def main():
     print()
 
     # Find best for cross-session
-    cross_key = "June23→June24"
+    cross_key = "feb23→feb24"
     best_config = min(configs[1:], key=lambda c: c[1].get(cross_key, 999))
     print(f"  Best for {cross_key}: {best_config[0]} "
           f"(MAE = {best_config[1][cross_key]:.2f}°)")
 
-    cross_key2 = "June24→June23"
+    cross_key2 = "feb24→feb23"
     best_config2 = min(configs[1:], key=lambda c: c[1].get(cross_key2, 999))
     print(f"  Best for {cross_key2}: {best_config2[0]} "
           f"(MAE = {best_config2[1][cross_key2]:.2f}°)")
 
     results_json["summary"] = {
-        "best_june23_to_24": best_config[0],
-        "best_june24_to_23": best_config2[0],
+        "best_feb23_to_24": best_config[0],
+        "best_feb24_to_23": best_config2[0],
     }
 
     # Save JSON
