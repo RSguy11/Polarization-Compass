@@ -63,9 +63,17 @@ def extract_features(loader, indices, label=""):
 
 def test_svm_classification():
     """Test SVM classification with real underwater polarization data."""
+    
+    # SAMPLING MODE SWITCH
+    USE_ADVANCED_SAMPLING = False  # True = 5th-8th frames, False = first frame only
+    
     print("REAL DATA SVM CLASSIFICATION TEST")
     print("=" * 60)
     print("Cross-Session Testing: June_23 → June_24 (Correct Setup)")
+    if USE_ADVANCED_SAMPLING:
+        print("Sampling: Advanced (5th-8th frames per burst)")
+    else:
+        print("Sampling: Simple (first frame per burst)")
     print("=" * 60)
     
     # Initialize UnderwaterDataLoader (point to actual image location)
@@ -89,33 +97,48 @@ def test_svm_classification():
         print(f"  {sess}: {az.min():.1f}° - {az.max():.1f}° (n={mask.sum():,})")
     print()
     
-    # Use burst-based sampling (1 sample per burst, prefer 5th-8th frames)
-    print("Collecting burst-based samples (prefer 5th-8th frames per burst)...")
-    burst_indices = {}
-    
-    # First pass: collect all indices for each burst
-    for i in range(n):
-        try:
-            labels = loader._get_labels(i)
-            burst_key = f"{labels['session']}_{labels['run']}_{labels['burst']}"
-            if burst_key not in burst_indices:
-                burst_indices[burst_key] = []
-            burst_indices[burst_key].append(i)
-        except:
-            continue
-    
-    # Second pass: select preferred sample from each burst
-    subsample = []
-    for burst_key, indices in burst_indices.items():
-        if len(indices) >= 8:
-            # Take 5th sample (index 4) if 8+ samples available
-            subsample.append(indices[4])
-        elif len(indices) >= 5:
-            # Take 5th sample if 5-7 samples available  
-            subsample.append(indices[4])
-        else:
-            # Take first sample if less than 5 samples
-            subsample.append(indices[0])
+    # Use burst-based sampling with configurable method
+    if USE_ADVANCED_SAMPLING:
+        print("Collecting burst-based samples (prefer 5th-8th frames per burst)...")
+        burst_indices = {}
+        
+        # First pass: collect all indices for each burst
+        for i in range(n):
+            try:
+                labels = loader._get_labels(i)
+                burst_key = f"{labels['session']}_{labels['run']}_{labels['burst']}"
+                if burst_key not in burst_indices:
+                    burst_indices[burst_key] = []
+                burst_indices[burst_key].append(i)
+            except:
+                continue
+        
+        # Second pass: select preferred sample from each burst
+        subsample = []
+        for burst_key, indices in burst_indices.items():
+            if len(indices) >= 8:
+                # Take 5th sample (index 4) if 8+ samples available
+                subsample.append(indices[4])
+            elif len(indices) >= 5:
+                # Take 5th sample if 5-7 samples available  
+                subsample.append(indices[4])
+            else:
+                # Take first sample if less than 5 samples
+                subsample.append(indices[0])
+                
+    else:
+        print("Collecting burst-based samples (first frame per burst)...")
+        burst_samples = {}
+        for i in range(n):
+            try:
+                labels = loader._get_labels(i)
+                burst_key = f"{labels['session']}_{labels['run']}_{labels['burst']}"
+                if burst_key not in burst_samples:
+                    burst_samples[burst_key] = i  # Take first sample from each burst
+            except:
+                continue
+        
+        subsample = list(burst_samples.values())
     print(f"Using {len(subsample)} burst-based samples (1 per burst)\n")
     
     # Extract features for burst samples
