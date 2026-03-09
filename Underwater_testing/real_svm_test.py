@@ -65,13 +65,15 @@ def test_svm_classification():
     """Test SVM classification with real underwater polarization data."""
     
     # SAMPLING MODE SWITCH
-    USE_ADVANCED_SAMPLING = False  # True = 5th-8th frames, False = first frame only
+    SAMPLING_MODE = "first"  # Options: "first", "advanced", "last"
     
     print("REAL DATA SVM CLASSIFICATION TEST")
     print("=" * 60)
     print("Cross-Session Testing: June_23 → June_24 (Correct Setup)")
-    if USE_ADVANCED_SAMPLING:
+    if SAMPLING_MODE == "advanced":
         print("Sampling: Advanced (5th-8th frames per burst)")
+    elif SAMPLING_MODE == "last":
+        print("Sampling: Last frame per burst")
     else:
         print("Sampling: Simple (first frame per burst)")
     print("=" * 60)
@@ -91,14 +93,21 @@ def test_svm_classification():
     print(f"  Azimuth range: {all_labels.min():.1f}° - {all_labels.max():.1f}°")
     print(f"  Coverage: {all_labels.max() - all_labels.min():.1f}° of 360°")
     
-    for sess in ["June_23", "June_24"]:
+    for sess in ["June_23", "June_24", "Mar_09"]:
         mask = all_sessions == sess
-        az = all_labels[mask]
-        print(f"  {sess}: {az.min():.1f}° - {az.max():.1f}° (n={mask.sum():,})")
+        if mask.sum() > 0:
+            az = all_labels[mask]
+            print(f"  {sess}: {az.min():.1f}° - {az.max():.1f}° (n={mask.sum():,})")
+        else:
+            print(f"  {sess}: No data found")
+    
+    # Show all available sessions
+    unique_sessions = np.unique(all_sessions)
+    print(f"  All available sessions: {list(unique_sessions)}")
     print()
     
     # Use burst-based sampling with configurable method
-    if USE_ADVANCED_SAMPLING:
+    if SAMPLING_MODE == "advanced":
         print("Collecting burst-based samples (prefer 5th-8th frames per burst)...")
         burst_indices = {}
         
@@ -126,6 +135,20 @@ def test_svm_classification():
                 # Take first sample if less than 5 samples
                 subsample.append(indices[0])
                 
+    elif SAMPLING_MODE == "last":
+        print("Collecting burst-based samples (last frame per burst)...")
+        burst_samples = {}
+        for i in range(n):
+            try:
+                labels = loader._get_labels(i)
+                burst_key = f"{labels['session']}_{labels['run']}_{labels['burst']}"
+                # Always update with the latest index (will end up with last frame)
+                burst_samples[burst_key] = i
+            except:
+                continue
+        
+        subsample = list(burst_samples.values())
+        
     else:
         print("Collecting burst-based samples (first frame per burst)...")
         burst_samples = {}
@@ -159,8 +182,16 @@ def test_svm_classification():
     train_mask = sub_sessions == "June_23"  # Training data (was Day_2)
     test_mask = sub_sessions == "June_24"   # Test data (was Day_1)
     
+    # Debug session information
+    print(f"Available sessions: {np.unique(sub_sessions)}")
+    print(f"Session counts: {[(sess, (sub_sessions == sess).sum()) for sess in np.unique(sub_sessions)]}")
+    print(f"Training data found: {train_mask.sum()} samples")
+    print(f"Test data found: {test_mask.sum()} samples")
+    
     if train_mask.sum() == 0 or test_mask.sum() == 0:
         print("ERROR: Insufficient data for cross-session testing")
+        print(f"  - Train (June_23): {train_mask.sum()} samples")
+        print(f"  - Test (June_24): {test_mask.sum()} samples")
         return {}
     
     X_train = sub_feat[train_mask]
@@ -186,11 +217,11 @@ def test_svm_classification():
     ]
     
     # Test SVR configurations (also with minimal features)
-    svr_configs = [
-        {"name": "SVR_minimal", "C": 10, "epsilon": 0.1, "feature_selection": 15, "use_complex": True},
-        {"name": "SVR_tiny", "C": 1.0, "epsilon": 0.2, "feature_selection": 10, "use_complex": True},
-        {"name": "SVR_micro", "C": 0.1, "epsilon": 0.3, "feature_selection": 5, "use_complex": True},
-    ]
+    # svr_configs = [
+    #     {"name": "SVR_minimal", "C": 10, "epsilon": 0.1, "feature_selection": 15, "use_complex": True},
+    #     {"name": "SVR_tiny", "C": 1.0, "epsilon": 0.2, "feature_selection": 10, "use_complex": True},
+    #     {"name": "SVR_micro", "C": 0.1, "epsilon": 0.3, "feature_selection": 5, "use_complex": True},
+    # ]
     
     results = {}
     
@@ -241,82 +272,82 @@ def test_svm_classification():
             results[config["name"]] = {"error": str(e)}
     
     # Test SVR configurations
-    print(f"\\n" + "=" * 60)
-    print("SVR REGRESSION TESTING")
-    print("=" * 60)
-    
-    for config in svr_configs:
-        print(f"\\n{config['name']}: SVR regression")
-        print(f"  Parameters: C={config['C']}, epsilon={config['epsilon']}, features={config['feature_selection']}")
-        
-        try:
-            # Train SVR
-            svr = CircularSVR(
-                C=config["C"],
-                gamma="scale",
-                epsilon=config["epsilon"], 
-                feature_selection=config["feature_selection"],
-                use_complex=config["use_complex"]
-            )
-            
-            print(f"  Training...")
-            svr.fit(X_train, y_train)
-            
-            print(f"  Predicting...")
-            pred_train = svr.predict(X_train)
-            pred_test = svr.predict(X_test)
-            
-            # Calculate circular errors
-            train_mae, train_rmse = calculate_circular_mae_svr(y_train, pred_train)
-            test_mae, test_rmse = calculate_circular_mae_svr(y_test, pred_test)
-            
-            cross_session_gap = test_mae - train_mae
-            
-            results[config["name"]] = {
-                "train_mae": train_mae,
-                "test_mae": test_mae,
-                "cross_session_gap": cross_session_gap,
-                "config": config,
-                "type": "SVR"
-            }
-            
-            print(f"  Train MAE:     {train_mae:6.2f}°")
-            print(f"  Test MAE:      {test_mae:6.2f}° (cross-session)")
-            print(f"  Session gap:   {cross_session_gap:6.2f}°")
-            
-        except Exception as e:
-            print(f"  ERROR: {e}")
-            results[config["name"]] = {"error": str(e)}
+    # print(f"\\n" + "=" * 60)
+    # print("SVR REGRESSION TESTING")
+    # print("=" * 60)
+    # 
+    # for config in svr_configs:
+    #     print(f"\\n{config['name']}: SVR regression")
+    #     print(f"  Parameters: C={config['C']}, epsilon={config['epsilon']}, features={config['feature_selection']}")
+    #     
+    #     try:
+    #         # Train SVR
+    #         svr = CircularSVR(
+    #             C=config["C"],
+    #             gamma="scale",
+    #             epsilon=config["epsilon"], 
+    #             feature_selection=config["feature_selection"],
+    #             use_complex=config["use_complex"]
+    #         )
+    #         
+    #         print(f"  Training...")
+    #         svr.fit(X_train, y_train)
+    #         
+    #         print(f"  Predicting...")
+    #         pred_train = svr.predict(X_train)
+    #         pred_test = svr.predict(X_test)
+    #         
+    #         # Calculate circular errors
+    #         train_mae, train_rmse = calculate_circular_mae_svr(y_train, pred_train)
+    #         test_mae, test_rmse = calculate_circular_mae_svr(y_test, pred_test)
+    #         
+    #         cross_session_gap = test_mae - train_mae
+    #         
+    #         results[config["name"]] = {
+    #             "train_mae": train_mae,
+    #             "test_mae": test_mae,
+    #             "cross_session_gap": cross_session_gap,
+    #             "config": config,
+    #             "type": "SVR"
+    #         }
+    #         
+    #         print(f"  Train MAE:     {train_mae:6.2f}°")
+    #         print(f"  Test MAE:      {test_mae:6.2f}° (cross-session)")
+    #         print(f"  Session gap:   {cross_session_gap:6.2f}°")
+    #         
+    #     except Exception as e:
+    #         print(f"  ERROR: {e}")
+    #         results[config["name"]] = {"error": str(e)}
     
     # Test wrapper interface (for integration compatibility)
-    print(f"\\nTesting SVMClassificationWrapper interface...")
-    try:
-        wrapper = SVMClassificationWrapper(
-            n_bins=16, C=50, feature_selection=100
-        )
-        
-        # Convert to radians (interface compatibility)
-        y_train_rad = np.deg2rad(y_train)
-        y_test_rad = np.deg2rad(y_test)
-        
-        print("  Training wrapper...")
-        wrapper.fit(X_train, y_train_rad)
-        
-        print("  Predicting...")
-        pred_test_rad = wrapper.predict(X_test)
-        pred_test_wrapper = np.rad2deg(pred_test_rad) % 360
-        
-        wrapper_mae, _ = calculate_circular_error(y_test, pred_test_wrapper)
-        print(f"  Wrapper Test MAE: {wrapper_mae:.2f}°")
-        
-    except Exception as e:
-        print(f"  Wrapper ERROR: {e}")
+    # print(f"\\nTesting SVMClassificationWrapper interface...")
+    # try:
+    #     wrapper = SVMClassificationWrapper(
+    #         n_bins=16, C=50, feature_selection=100
+    #     )
+    #     
+    #     # Convert to radians (interface compatibility)
+    #     y_train_rad = np.deg2rad(y_train)
+    #     y_test_rad = np.deg2rad(y_test)
+    #     
+    #     print("  Training wrapper...")
+    #     wrapper.fit(X_train, y_train_rad)
+    #     
+    #     print("  Predicting...")
+    #     pred_test_rad = wrapper.predict(X_test)
+    #     pred_test_wrapper = np.rad2deg(pred_test_rad) % 360
+    #     
+    #     wrapper_mae, _ = calculate_circular_error(y_test, pred_test_wrapper)
+    #     print(f"  Wrapper Test MAE: {wrapper_mae:.2f}°")
+    #     
+    # except Exception as e:
+    #     print(f"  Wrapper ERROR: {e}")
     
     # ═════════════════════════════════════════════════════════════════════
     # RESULTS ANALYSIS
     # ═════════════════════════════════════════════════════════════════════
     print(f"\\n" + "=" * 60) 
-    print("CROSS-SESSION RESULTS: SVM vs SVR")
+    print("CROSS-SESSION RESULTS: SVM ONLY")
     print("=" * 60)
     
     print(f"{'Model':<15} {'Train':<8} {'Test':<8} {'Gap':<8} {'Type'}")
@@ -380,24 +411,24 @@ def test_svm_classification():
             
             # Show best SVM vs SVR
             svm_results = [(k, v) for k, v in valid_results if v.get("type", "SVM") == "SVM"]
-            svr_results = [(k, v) for k, v in valid_results if v.get("type") == "SVR"]
+            # svr_results = [(k, v) for k, v in valid_results if v.get("type") == "SVR"]
             
             if svm_results:
                 best_svm = min(svm_results, key=lambda x: x[1]["test_mae"])
                 print(f"- Best SVM: {best_svm[0]} ({best_svm[1]['test_mae']:.2f}° MAE)")
                 
-            if svr_results:
-                best_svr = min(svr_results, key=lambda x: x[1]["test_mae"])
-                print(f"- Best SVR: {best_svr[0]} ({best_svr[1]['test_mae']:.2f}° MAE)")
+            # if svr_results:
+            #     best_svr = min(svr_results, key=lambda x: x[1]["test_mae"])
+            #     print(f"- Best SVR: {best_svr[0]} ({best_svr[1]['test_mae']:.2f}° MAE)")
         
         # SVR vs SVM comparison
-        if len(svr_results) > 0 and len(svm_results) > 0:
-            avg_svr = np.mean([v["test_mae"] for k, v in svr_results])
-            avg_svm = np.mean([v["test_mae"] for k, v in svm_results])
-            print(f"\\n📊 SVR vs SVM Comparison:")
-            print(f"   Average SVR MAE: {avg_svr:.2f}°")
-            print(f"   Average SVM MAE: {avg_svm:.2f}°")
-            print(f"   SVR advantage: {avg_svm - avg_svr:.2f}° better" if avg_svr < avg_svm else f"   SVM advantage: {avg_svr - avg_svm:.2f}° better")
+        # if len(svr_results) > 0 and len(svm_results) > 0:
+        #     avg_svr = np.mean([v["test_mae"] for k, v in svr_results])
+        #     avg_svm = np.mean([v["test_mae"] for k, v in svm_results])
+        #     print(f"\\n📊 SVR vs SVM Comparison:")
+        #     print(f"   Average SVR MAE: {avg_svr:.2f}°")
+        #     print(f"   Average SVM MAE: {avg_svm:.2f}°")
+        #     print(f"   SVR advantage: {avg_svm - avg_svr:.2f}° better" if avg_svr < avg_svm else f"   SVM advantage: {avg_svr - avg_svm:.2f}° better")
             
     else:
         print("\\n❌ ERROR: No valid SVM results obtained")
