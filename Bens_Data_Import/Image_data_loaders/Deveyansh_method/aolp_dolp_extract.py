@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
  
 # Read image and demosaicing
 # Path to raw intensity
-img_raw = cv2.imread("C:/Users/naesl/Polarization-Compass/Bens_Data_Import/new_underwater_test/2026-02-24_12-05-44_burst001_frame010.png", 0)
+img_raw = cv2.imread("C:/Timelapse/2-8-2026 Images/run_2026-02-24_12-37-29/burst_2026-02-24_13-20-29/2026-02-24_13-20-33_burst044_frame007.png", 0)
  
 #Uses Polanalyser to demosaic
 img_000, img_045, img_090, img_135 = pa.demosaicing(img_raw, pa.COLOR_PolarMono)

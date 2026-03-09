@@ -62,13 +62,19 @@ class UnderwaterDataLoader:
 
         # Load the ground-truth label manifest
         parquet_path = self.data_root / "solar_labels.parquet"
-        if not parquet_path.exists():
+        csv_path = self.data_root / "solar_labels.csv"
+        
+        if parquet_path.exists():
+            self.labels_df = pd.read_parquet(parquet_path)
+            print(f"[OK] Loaded parquet: {parquet_path}")
+        elif csv_path.exists():
+            self.labels_df = pd.read_csv(csv_path, parse_dates=['timestamp'])
+            print(f"[OK] Loaded CSV: {csv_path}")
+        else:
             raise FileNotFoundError(
-                f"solar_labels.parquet not found at {parquet_path}.\n"
-                "Run  Capstone_live_data/generate_solar_labels.py  first."
+                f"No manifest found at {parquet_path} or {csv_path}.\n"
+                "Run  generate_day1_day2_labels.py  first."
             )
-
-        self.labels_df = pd.read_parquet(parquet_path)
 
         # Validate that image files referenced in the manifest exist
         # (spot-check the first and last to avoid scanning 8k files)

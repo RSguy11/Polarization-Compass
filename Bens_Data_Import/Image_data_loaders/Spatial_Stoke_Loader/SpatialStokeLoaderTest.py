@@ -10,8 +10,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from Bens_Data_Import.Image_data_loaders.Spatial_Stoke_Loader.SpatialStokeLoader import SpatialStokeDataLoader
 
-UNDERWATER_IMAGE = Path("C:/Users/naesl/Polarization-Compass/Bens_Data_Import/new_underwater_test/2026-02-24_12-05-44_burst001_frame010.png")
-UNDERWATER_DIR = Path("C:/Users/naesl/Polarization-Compass/Bens_Data_Import/new_underwater_test")
+UNDERWATER_IMAGE = Path("C:/Timelapse/2-8-2026 Images/run_2026-02-24_12-37-29/burst_2026-02-24_13-20-29/2026-02-24_13-20-33_burst044_frame007.png")
+UNDERWATER_DIR = Path("C:/Timelapse/2-8-2026 Images/run_2026-02-24_12-37-29")
 
 
 def load_dat_file(path, shape):

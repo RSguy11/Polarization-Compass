@@ -1,0 +1,27 @@
+{
+  "creation_date": "2026-03-07T22:10:38.836723",
+  "source_directory": "C:\\Timelapse\\2-8-2026 Images\\Day 1",
+  "total_images_found": 50,
+  "successful_processing": 50,
+  "failed_processing": 0,
+  "time_range": [
+    "2026-02-24 11:29:43",
+    "2026-02-24 11:29:53"
+  ],
+  "azimuth_range": [
+    259.1693428312079,
+    259.1981511134558
+  ],
+  "elevation_range": [
+    -2.2281205996685594,
+    -2.198768908159504
+  ],
+  "location": {
+    "latitude": 44.2253,
+    "longitude": -76.4951,
+    "timezone_offset": -5
+  },
+  "sessions": [
+    "Day_1"
+  ]
+}

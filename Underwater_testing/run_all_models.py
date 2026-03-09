@@ -35,6 +35,7 @@ from Training_loops.run_all_models import (
     GradientBoostingWrapper,
     calculate_sample_weights,
 )
+from Models.SVM_classification.svm_classification_wrapper import SVMClassificationWrapper
 from Training_loops.visualization import create_training_plots
 from Underwater_testing.UnderwaterDataLoader import UnderwaterDataLoader
 
@@ -194,6 +195,30 @@ def run_complete_pipeline():
             gamma="scale",
             epsilon=0.01,
             kernel="rbf",
+        ),
+        "SVM_Classification_Coarse": SVMClassificationWrapper(
+            n_bins=8,
+            C=10.0,
+            gamma="scale",
+            probability=True,
+            feature_selection=150,
+            class_weight="balanced"
+        ),
+        "SVM_Classification_Fine": SVMClassificationWrapper(
+            n_bins=16,
+            C=50.0,
+            gamma="scale",
+            probability=True,
+            feature_selection=100,
+            class_weight="balanced"
+        ),
+        "SVM_Classification_Ultra": SVMClassificationWrapper(
+            n_bins=32,
+            C=100.0,
+            gamma="auto", 
+            probability=True,
+            feature_selection=80,
+            class_weight="balanced"
         ),
         "RF_Enhanced": CircularRegressionWrapper(
             RandomForestRegressor,

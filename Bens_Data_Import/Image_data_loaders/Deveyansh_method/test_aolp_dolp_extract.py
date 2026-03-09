@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 # Paths
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parents[3]  # Polarization-Compass
-TEST_IMAGE = PROJECT_ROOT / "Bens_Data_Import" / "new_underwater_test" / "2026-02-24_12-05-44_burst001_frame010.png"
+TEST_IMAGE = Path("C:/Timelapse/2-8-2026 Images/run_2026-02-24_12-37-29/burst_2026-02-24_13-20-29/2026-02-24_13-20-33_burst044_frame007.png")
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,1 @@
+SVM Cross-Session Results - 2026-03-07_22-18-50\n==================================================\nBest model: None\nBest MAE: inf°\nBaseline: 23.1°\n

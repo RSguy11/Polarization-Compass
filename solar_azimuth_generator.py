@@ -232,10 +232,9 @@ if __name__ == "__main__":
     print("SOLAR AZIMUTH LABEL GENERATION - EXAMPLE")
     print("=" * 50)
     
-    # Example: Queen's University, Kingston, Ontario coordinates
-    # (Replace with your actual data collection location)
-    latitude = 44.2253  # Queen's University approximate location
-    longitude = -76.4951
+    # Fridnship park long, lat
+    latitude = 44.237231  
+    longitude = -76.491204
     timezone_offset = -5  # EST (adjust for your timezone)
     
     print(f"Example location: Queen's University, Kingston")

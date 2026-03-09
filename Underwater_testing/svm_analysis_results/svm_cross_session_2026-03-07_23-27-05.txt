@@ -1,0 +1,1 @@
+SVM Cross-Session Results - 2026-03-07_23-27-05\n==================================================\nBest model: SVM_16bins\nBest MAE: 31.58°\nBaseline: 23.1°\nImprovement: -36.7%\n\nSVM_8bins: 34.43° MAE\nSVM_16bins: 31.58° MAE\nSVM_24bins: 35.26° MAE\nSVM_32bins: 34.99° MAE\nSVR_simple: 32.41° MAE\nSVR_complex: 32.89° MAE\nSVR_tuned: 33.41° MAE\nSVR_light: 33.29° MAE\n
