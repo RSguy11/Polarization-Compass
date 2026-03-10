@@ -94,7 +94,7 @@ def create_training_plots(results, training_history, output_dir):
     ax3.set_xticklabels(model_names, rotation=25, ha='right', fontsize=8)
     ax3.grid(axis='y', alpha=0.3)
     for i, v in enumerate(test_mae):
-        ax3.text(i, v + 0.2, f'{v:.2f}°', ha='center', va='bottom', fontsize=8, fontweight='bold')
+        ax3.text(i, v + 0.2, f'{v:.2f}°', ha='center', va='bottom', fontsize=8, fontweighht='bold')
     
     meets_req = [results[name]['meets_requirements'] for name in model_names]
     colors = ['#2ecc71' if met else '#e74c3c' for met in meets_req]

@@ -1,1 +1,1 @@
-SVM Cross-Session Results - 2026-03-09_16-25-14\n==================================================\nBest model: SVM_32bins_minimal\nBest MAE: 10.40�\nBaseline: 23.1�\nImprovement: 55.0%\n\nSVM_8bins_minimal: 23.73� MAE\nSVM_16bins_minimal: 14.25� MAE\nSVM_24bins_minimal: 16.26� MAE\nSVM_32bins_minimal: 10.40� MAE\nSVM_8bins_medium: 18.31� MAE\nSVM_16bins_medium: 14.42� MAE\n
+.4 

@@ -179,8 +179,8 @@ def test_svm_classification():
     print("CROSS-SESSION SVM TESTING (Train feb_23 → Test Mar_09)")
     print("=" * 60)
     
-    train_mask = sub_sessions == "feb_23"  # Training data 
-    test_mask = sub_sessions == "Mar_09"   # Test data 
+    train_mask = sub_sessions == "Mar_09"  # Training data 
+    test_mask = sub_sessions == "feb_23"   # Test data 
     
     # Debug session information
     print(f"Available sessions: {np.unique(sub_sessions)}")
@@ -464,6 +464,127 @@ def test_svm_classification():
     print(f"\\nResults saved to: {summary_file}")
     
     return results
+
+
+# Global cache for features to avoid re-extraction
+_FEATURE_CACHE = None
+
+
+def get_best_svm_for_visualization(use_cache=True):
+    """Get trained SVM model and data for visualization dashboard."""
+    global _FEATURE_CACHE
+    
+    print("[DASHBOARD] Loading SVM model and data for visualization...")
+    
+    # Check if we have cached features
+    if use_cache and _FEATURE_CACHE is not None:
+        print("[DASHBOARD] Using cached features (much faster!)")
+        X_train = _FEATURE_CACHE['X_train']
+        X_test = _FEATURE_CACHE['X_test']
+        y_train = _FEATURE_CACHE['y_train']
+        y_test = _FEATURE_CACHE['y_test']
+        print(f"[DASHBOARD] Cached: Train {X_train.shape[0]}, Test {X_test.shape[0]} samples")
+    else:
+        print("[DASHBOARD] Extracting features (first time or cache disabled)...")
+        
+        # Initialize data loader
+        data_root = Path("C:/Queens/ELEC498/Capstone_live_data").resolve()
+        loader = UnderwaterDataLoader(data_root=data_root)
+        n = len(loader)
+        
+        # Load all labels and sessions
+        all_labels = np.array([loader._get_labels(i)["azimuth"] for i in range(n)])
+        all_sessions = np.array([loader._get_labels(i)["session"] for i in range(n)])
+        
+        print(f"[DASHBOARD] Dataset: {n:,} total samples")
+        
+        # Use burst-based sampling (same as main test)
+        print("[DASHBOARD] Collecting burst-based samples...")
+        burst_samples = {}
+        for i in range(n):
+            try:
+                labels = loader._get_labels(i)
+                burst_key = f"{labels['session']}_{labels['run']}_{labels['burst']}"
+                if burst_key not in burst_samples:
+                    burst_samples[burst_key] = i
+            except:
+                continue
+        
+        subsample = list(burst_samples.values())
+        print(f"[DASHBOARD] Using {len(subsample)} burst samples")
+        
+        # Extract features
+        print("[DASHBOARD] Extracting features...")
+        sub_feat, sub_valid = extract_features(loader, subsample, "dashboard")
+        sub_labels = all_labels[sub_valid]
+        sub_sessions = all_sessions[sub_valid]
+        
+        # Create train/test split (Mar_09 train, feb_23 test)
+        train_mask = sub_sessions == "Mar_09"
+        test_mask = sub_sessions == "feb_23"
+        
+        if train_mask.sum() == 0 or test_mask.sum() == 0:
+            print("[DASHBOARD] ERROR: Insufficient real data")
+            return None, None, None, None, None
+        
+        X_train = sub_feat[train_mask]
+        X_test = sub_feat[test_mask]
+        y_train = sub_labels[train_mask]
+        y_test = sub_labels[test_mask]
+        
+        print(f"[DASHBOARD] Train: {X_train.shape[0]} samples, Test: {X_test.shape[0]} samples")
+        
+        # Cache the features for future use
+        if use_cache:
+            _FEATURE_CACHE = {
+                'X_train': X_train,
+                'X_test': X_test, 
+                'y_train': y_train,
+                'y_test': y_test
+            }
+            print("[DASHBOARD] Features cached for future use")
+    
+    # Train the best performing SVM configuration
+    best_config = {"n_bins": 16, "C": 10, "feature_selection": 12}
+    
+    print(f"[DASHBOARD] Training SVM with config: {best_config}")
+    svm = CircularSVMClassifier(
+        n_bins=best_config["n_bins"],
+        C=best_config["C"],
+        gamma="scale",
+        probability=True,
+        feature_selection=best_config["feature_selection"],
+        class_weight="balanced"
+    )
+    
+    svm.fit(X_train, y_train)
+    
+    # Generate predictions
+    print("[DASHBOARD] Generating predictions...")
+    pred_train = svm.predict(X_train)
+    pred_test = svm.predict(X_test)
+    
+    # Calculate errors
+    train_mae, _ = calculate_circular_error(y_train, pred_train)
+    test_mae, _ = calculate_circular_error(y_test, pred_test)
+    
+    print(f"[DASHBOARD] Train MAE: {train_mae:.2f}°, Test MAE: {test_mae:.2f}°")
+    print(f"[DASHBOARD] Ready for visualization with {len(pred_test)} test predictions")
+    
+    return svm, pred_test, y_test, test_mae, {
+        'train_predictions': pred_train,
+        'train_labels': y_train,
+        'train_mae': train_mae,
+        'test_mae': test_mae,
+        'config': best_config
+    }
+
+
+def clear_feature_cache():
+    """Clear the feature cache to force re-extraction."""
+    global _FEATURE_CACHE
+    _FEATURE_CACHE = None
+    print("[DASHBOARD] Feature cache cleared")
 
 
 if __name__ == "__main__":
