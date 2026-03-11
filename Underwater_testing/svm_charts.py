@@ -726,6 +726,227 @@ def analyze_real_svm_performance():
         traceback.print_exc()
 
 
+def create_predicted_vs_actual_chart(predictions, actual_labels, model_name="SVM", output_dir=None):
+    """
+    Create standalone predicted vs actual azimuth scatter plot (like cross_dataset_validation.py).
+    
+    Args:
+        predictions: Array of predicted azimuths (degrees)
+        actual_labels: Array of actual azimuths (degrees) 
+        model_name: Name of the model for title
+        output_dir: Directory to save plot (optional)
+    """
+    if predictions is None or actual_labels is None:
+        print("[ERROR] Cannot create predicted vs actual chart: missing data")
+        return
+        
+    predictions = np.array(predictions)
+    actual_labels = np.array(actual_labels)
+    
+    if len(predictions) != len(actual_labels) or len(predictions) == 0:
+        print(f"[ERROR] Data size mismatch: pred={len(predictions)}, actual={len(actual_labels)}")
+        return
+    
+    # Calculate MAE for title
+    error_values = circular_error(predictions, actual_labels)
+    if error_values is not None:
+        mae = np.mean(np.abs(error_values))
+    else:
+        mae = float('inf')
+    
+    # Create figure
+    plt.figure(figsize=(8, 8))
+    
+    # Scatter plot
+    plt.scatter(actual_labels, predictions, alpha=0.6, s=15, color='#3498db', label='Predictions')
+    
+    # Formatting with dynamic axis limits based on data
+    plt.xlabel('Actual Azimuth (°)', fontweight='bold', fontsize=12)
+    plt.ylabel('Predicted Azimuth (°)', fontweight='bold', fontsize=12)
+    plt.title(f'{model_name}: Predicted vs Actual Azimuth\nMAE: {mae:.2f}°', fontweight='bold', fontsize=14)
+    
+    # Set axis limits based on data range with some padding
+    min_val = min(np.min(actual_labels), np.min(predictions))
+    max_val = max(np.max(actual_labels), np.max(predictions))
+    padding = (max_val - min_val) * 0.05  # 5% padding
+    axis_min = max(0, min_val - padding)
+    axis_max = min(360, max_val + padding)
+    
+    plt.xlim(axis_min, axis_max)
+    plt.ylim(axis_min, axis_max)
+    
+    # Perfect prediction line (plotted after setting limits)
+    plt.plot([axis_min, axis_max], [axis_min, axis_max], 'r--', linewidth=2, label='Perfect Prediction')
+    
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=11)
+    
+    # Add text box with statistics
+    within_5 = np.mean(np.abs(error_values) <= 5) * 100 if error_values is not None else 0
+    within_10 = np.mean(np.abs(error_values) <= 10) * 100 if error_values is not None else 0
+    stats_text = f'Within 5°: {within_5:.1f}%\nWithin 10°: {within_10:.1f}%'
+    plt.text(0.02, 0.98, stats_text, transform=plt.gca().transAxes, 
+             fontsize=10, verticalalignment='top', 
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    
+    plt.tight_layout()
+    
+    # Save if output directory provided
+    if output_dir:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        save_path = output_dir / f'{model_name.lower()}_predicted_vs_actual.png'
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"[OK] Predicted vs actual chart saved to: {save_path}")
+    
+    try:
+        plt.show(block=False)
+    except:
+        print("[INFO] Plot saved to file (GUI display not available)")
+        
+    plt.close()
+
+
+def create_error_count_chart(predictions, actual_labels, model_name="SVM", output_dir=None):
+    """
+    Create standalone error distribution histogram (count vs calibrated error).
+    
+    Args:
+        predictions: Array of predicted azimuths (degrees)
+        actual_labels: Array of actual azimuths (degrees)
+        model_name: Name of the model for title
+        output_dir: Directory to save plot (optional)
+    """
+    if predictions is None or actual_labels is None:
+        print("[ERROR] Cannot create error count chart: missing data")
+        return
+        
+    predictions = np.array(predictions)
+    actual_labels = np.array(actual_labels)
+    
+    if len(predictions) != len(actual_labels) or len(predictions) == 0:
+        print(f"[ERROR] Data size mismatch: pred={len(predictions)}, actual={len(actual_labels)}")
+        return
+    
+    # Calculate circular errors
+    error_values = circular_error(predictions, actual_labels)
+    if error_values is None:
+        print("[ERROR] Could not calculate circular errors")
+        return
+        
+    # Use signed errors for the histogram to show direction bias
+    signed_errors = error_values
+    abs_errors = np.abs(error_values)
+    
+    mae = np.mean(abs_errors)
+    rmse = np.sqrt(np.mean(abs_errors**2))
+    median_error = np.median(abs_errors)
+    
+    # Create figure
+    plt.figure(figsize=(10, 6))
+    
+    # Create histogram
+    n_bins = min(30, len(signed_errors) // 3)  # Adaptive bin count
+    n, bins, patches = plt.hist(signed_errors, bins=n_bins, alpha=0.7, 
+                               edgecolor='black', color='#3498db', label='Error Distribution')
+    
+    # Add vertical lines for key metrics
+    plt.axvline(x=0, color='green', linestyle='-', linewidth=2, alpha=0.8, label='Perfect (0° error)')
+    plt.axvline(x=float(mae), color='red', linestyle='--', linewidth=2, alpha=0.8, label=f'MAE: {mae:.2f}°')
+    plt.axvline(x=float(-mae), color='red', linestyle='--', linewidth=2, alpha=0.8)
+    plt.axvline(x=5, color='orange', linestyle=':', linewidth=2, alpha=0.7, label='Target: ±5°')
+    plt.axvline(x=-5, color='orange', linestyle=':', linewidth=2, alpha=0.7)
+    
+    # Formatting
+    plt.xlabel('Calibrated Error (°)', fontweight='bold', fontsize=12)
+    plt.ylabel('Count', fontweight='bold', fontsize=12)
+    plt.title(f'{model_name}: Error Distribution\nMAE: {mae:.2f}°, RMSE: {rmse:.2f}°, Median: {median_error:.2f}°', 
+              fontweight='bold', fontsize=14)
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=11)
+    
+    # Add statistics text box
+    within_5 = np.mean(abs_errors <= 5) * 100
+    within_10 = np.mean(abs_errors <= 10) * 100
+    within_45 = np.mean(abs_errors <= 45) * 100
+    
+    stats_text = f'Within 5°: {within_5:.1f}%\nWithin 10°: {within_10:.1f}%\nWithin 45°: {within_45:.1f}%\nTotal samples: {len(signed_errors)}'
+    plt.text(0.98, 0.98, stats_text, transform=plt.gca().transAxes, 
+             fontsize=10, verticalalignment='top', horizontalalignment='right',
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    
+    plt.tight_layout()
+    
+    # Save if output directory provided
+    if output_dir:
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        save_path = output_dir / f'{model_name.lower()}_error_distribution.png'
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"[OK] Error distribution chart saved to: {save_path}")
+    
+    try:
+        plt.show(block=False)
+    except:
+        print("[INFO] Plot saved to file (GUI display not available)")
+        
+    plt.close()
+
+
+def demo_standalone_charts():
+    """Demonstrate the standalone chart functions using real SVM data."""
+    try:
+        # Get cached SVM data
+        result = get_cached_svm_data()
+        
+        # Handle case where function might return None or unexpected format
+        if result is None:
+            print("[ERROR] No cached SVM data available")
+            return
+            
+        # Defensive unpacking
+        if isinstance(result, tuple) and len(result) == 5:
+            svm_model, predictions, actual_labels, test_mae, extra_data = result
+        else:
+            print(f"[ERROR] Unexpected return format from get_cached_svm_data(): {type(result)}")
+            return
+            
+        if svm_model is None or predictions is None:
+            print("[ERROR] No cached SVM data available")
+            return
+            
+        # Safe length check
+        try:
+            predictions_len = len(predictions)
+        except (TypeError, AttributeError) as e:
+            print(f"[ERROR] Cannot get length of predictions: {e}")
+            print(f"[DEBUG] predictions type: {type(predictions)}")
+            return
+            
+        print(f"[DEMO] Creating standalone charts with {predictions_len} predictions...")
+        
+        # Create output directory
+        output_dir = Path(__file__).parent / "svm_analysis_results"
+        
+        print("\n1. Creating predicted vs actual scatter plot...")
+        create_predicted_vs_actual_chart(predictions, actual_labels, "SVM", output_dir)
+        
+        print("\n2. Creating error distribution histogram...")
+        create_error_count_chart(predictions, actual_labels, "SVM", output_dir)
+        
+        if test_mae is not None:
+            print(f"\n[DEMO] ✅ Standalone charts created successfully!")
+            print(f"        MAE: {test_mae:.2f}° with {len(predictions)} test samples")
+        else:
+            print(f"\n[DEMO] ✅ Standalone charts created successfully!")
+            print(f"        Charts created with {len(predictions)} test samples")
+        
+    except Exception as e:
+        print(f"[ERROR] Failed to create standalone charts: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 if __name__ == "__main__":
     print("REAL SVM Analysis Visualization Suite")
     print("=" * 50)
@@ -738,3 +959,6 @@ if __name__ == "__main__":
     
     print("\n3. Creating feature importance with REAL model...")
     demo_feature_importance()
+    
+    print("\n4. Creating standalone charts...")
+    demo_standalone_charts()

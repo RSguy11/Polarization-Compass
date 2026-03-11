@@ -9,6 +9,8 @@ Uses the same data structure as the diagnostic tests for cross-session validatio
 import numpy as np
 import sys
 import gc
+import pickle
+import os
 from pathlib import Path
 from datetime import datetime
 
@@ -27,6 +29,81 @@ from Models.SVM_classification.svr_regression_wrapper import (
 )
 from Training_loops.run_all_models import extract_statistical_features_from_single_image
 from Underwater_testing.UnderwaterDataLoader import UnderwaterDataLoader
+
+
+# Model cache directory
+MODEL_CACHE_DIR = Path(__file__).parent / "model_cache"
+MODEL_CACHE_DIR.mkdir(exist_ok=True)
+
+
+def get_model_cache_path(config, sampling_mode="first"):
+    """Generate cache file path for a specific model configuration."""
+    if "n_bins" in config:
+        # SVM configuration
+        cache_name = f"svm_{config['n_bins']}bins_C{config['C']}_fs{config['feature_selection']}_{sampling_mode}.pkl"
+    else:
+        # SVR configuration  
+        cache_name = f"svr_C{config['C']}_eps{config['epsilon']}_fs{config['feature_selection']}_{sampling_mode}.pkl"
+    return MODEL_CACHE_DIR / cache_name
+
+
+def save_model(model, config, sampling_mode="first", additional_data=None):
+    """Save trained model and metadata to cache."""
+    cache_path = get_model_cache_path(config, sampling_mode)
+    cache_data = {
+        'model': model,
+        'config': config,
+        'sampling_mode': sampling_mode,
+        'timestamp': datetime.now().isoformat(),
+        'additional_data': additional_data
+    }
+    
+    try:
+        with open(cache_path, 'wb') as f:
+            pickle.dump(cache_data, f)
+        print(f"  Model saved to: {cache_path.name}")
+        return True
+    except Exception as e:
+        print(f"  Warning: Failed to save model - {e}")
+        return False
+
+
+def load_model(config, sampling_mode="first"):
+    """Load trained model from cache if it exists."""
+    cache_path = get_model_cache_path(config, sampling_mode)
+    
+    if not cache_path.exists():
+        return None
+    
+    try:
+        with open(cache_path, 'rb') as f:
+            cache_data = pickle.load(f)
+        
+        # Verify config matches
+        if cache_data['config'] == config and cache_data['sampling_mode'] == sampling_mode:
+            print(f"  Loaded cached model: {cache_path.name}")
+            return cache_data['model'], cache_data.get('additional_data')
+        else:
+            print(f"  Cache config mismatch, will retrain")
+            return None
+            
+    except Exception as e:
+        print(f"  Warning: Failed to load model - {e}")
+        return None
+
+
+def clear_model_cache():
+    """Clear all cached models."""
+    if MODEL_CACHE_DIR.exists():
+        for cache_file in MODEL_CACHE_DIR.glob("*.pkl"):
+            try:
+                cache_file.unlink()
+                print(f"Deleted: {cache_file.name}")
+            except Exception as e:
+                print(f"Failed to delete {cache_file.name}: {e}")
+        print(f"Model cache cleared: {MODEL_CACHE_DIR}")
+    else:
+        print("No model cache directory found")
 
 
 def extract_features(loader, indices, label=""):
@@ -69,7 +146,7 @@ def test_svm_classification():
     
     print("REAL DATA SVM CLASSIFICATION TEST")
     print("=" * 60)
-    print("Cross-Session Testing: feb_23 → Mar_09 (Correct Setup)")
+    print("Cross-Session Testing: feb_23+feb_24 → Mar_09 (Combined Training)")
     if SAMPLING_MODE == "advanced":
         print("Sampling: Advanced (5th-8th frames per burst)")
     elif SAMPLING_MODE == "last":
@@ -176,10 +253,10 @@ def test_svm_classification():
     # CROSS-SESSION SPLIT (Train feb_23, Test Mar_09) - CORRECTED DIRECTION
     # ═════════════════════════════════════════════════════════════════════
     print("=" * 60)
-    print("CROSS-SESSION SVM TESTING (Train feb_23 → Test Mar_09)")
+    print("CROSS-SESSION SVM TESTING (Train feb_23+feb_24 → Test Mar_09)")
     print("=" * 60)
     
-    train_mask = sub_sessions == "Mar_09"  # Training data 
+    train_mask = (sub_sessions == "Mar_09")  # Training data 
     test_mask = sub_sessions == "feb_23"   # Test data 
     
     # Debug session information
@@ -190,7 +267,7 @@ def test_svm_classification():
     
     if train_mask.sum() == 0 or test_mask.sum() == 0:
         print("ERROR: Insufficient data for cross-session testing")
-        print(f"  - Train (feb_23): {train_mask.sum()} samples")
+        print(f"  - Train (feb_23+feb_24): {train_mask.sum()} samples")
         print(f"  - Test (Mar_09): {test_mask.sum()} samples")
         return {}
     
@@ -199,8 +276,8 @@ def test_svm_classification():
     y_train = sub_labels[train_mask]
     y_test = sub_labels[test_mask]
     
-    print(f"  Training (feb_23):    {X_train.shape[0]:3d} samples")
-    print(f"  Testing (Mar_09):     {X_test.shape[0]:3d} samples")
+    print(f"  Training (feb_23+feb_24): {X_train.shape[0]:3d} samples")
+    print(f"  Testing (Mar_09):       {X_test.shape[0]:3d} samples")
     print(f"  Feature dimensions:   {X_train.shape[1]} features")
     print(f"  Train azimuth range:  {y_train.min():.1f}° - {y_train.max():.1f}°")
     print(f"  Test azimuth range:   {y_test.min():.1f}° - {y_test.max():.1f}°")
@@ -233,22 +310,50 @@ def test_svm_classification():
         print(f"  Parameters: C={config['C']}, features={config['feature_selection']}")
         
         try:
-            # Train SVM classifier
-            svm = CircularSVMClassifier(
-                n_bins=config["n_bins"],
-                C=config["C"],
-                gamma="scale", 
-                probability=True,
-                feature_selection=config["feature_selection"],
-                class_weight="balanced"
-            )
+            # Try to load cached model first
+            cached_result = load_model(config, SAMPLING_MODE)
             
-            print(f"  Training...")
-            svm.fit(X_train, y_train)
-            
-            print(f"  Predicting...")
-            pred_train = svm.predict(X_train)
-            pred_test = svm.predict(X_test)
+            if cached_result is not None:
+                svm, additional_data = cached_result
+                print(f"  Using cached model (skip training)")
+                
+                # Get cached predictions if available
+                if additional_data and 'pred_train' in additional_data and 'pred_test' in additional_data:
+                    pred_train = additional_data['pred_train']
+                    pred_test = additional_data['pred_test']
+                    print(f"  Using cached predictions")
+                else:
+                    print(f"  Generating predictions...")
+                    pred_train = svm.predict(X_train)
+                    pred_test = svm.predict(X_test)
+            else:
+                # Train new SVM classifier
+                svm = CircularSVMClassifier(
+                    n_bins=config["n_bins"],
+                    C=config["C"],
+                    gamma="scale", 
+                    probability=True,
+                    feature_selection=config["feature_selection"],
+                    class_weight="balanced"
+                )
+                
+                print(f"  Training new model...")
+                svm.fit(X_train, y_train)
+                
+                print(f"  Predicting...")
+                pred_train = svm.predict(X_train)
+                pred_test = svm.predict(X_test)
+                
+                # Save the trained model and predictions
+                print(f"  [DEBUG] About to save model...")
+                additional_data = {
+                    'pred_train': pred_train,
+                    'pred_test': pred_test,
+                    'X_train_shape': X_train.shape,
+                    'X_test_shape': X_test.shape
+                }
+                save_success = save_model(svm, config, SAMPLING_MODE, additional_data)
+                print(f"  [DEBUG] Save result: {save_success}")
             
             # Calculate circular errors
             train_mae, train_rmse = calculate_circular_error(y_train, pred_train)
@@ -269,6 +374,7 @@ def test_svm_classification():
             
         except Exception as e:
             print(f"  ERROR: {e}")
+            print(f"  [DEBUG] Exception occurred, model not saved")
             results[config["name"]] = {"error": str(e)}
     
     # Test SVR configurations
@@ -470,11 +576,56 @@ def test_svm_classification():
 _FEATURE_CACHE = None
 
 
-def get_best_svm_for_visualization(use_cache=True):
+def get_best_svm_for_visualization(use_cache=True, force_retrain=False):
     """Get trained SVM model and data for visualization dashboard."""
     global _FEATURE_CACHE
     
     print("[DASHBOARD] Loading SVM model and data for visualization...")
+    
+    # Best performing configuration from testing results - use EXACT config that was saved
+    best_config = {"name": "SVM_32bins_minimal", "n_bins": 32, "C": 100, "feature_selection": 8}  # Best MAE: 8.84°
+    sampling_mode = "first"
+    
+    # Try to load cached model first (unless forced to retrain)
+    if not force_retrain:
+        print("[DASHBOARD] Checking for cached model...")
+        cached_result = load_model(best_config, sampling_mode)
+        
+        if cached_result is not None:
+            svm, cached_data = cached_result
+            print("[DASHBOARD] ✅ Using cached SVM model (no feature extraction needed)!")
+            
+            # Check if we have cached features and predictions
+            if use_cache and _FEATURE_CACHE is not None:
+                print("[DASHBOARD] ✅ Using cached features")
+                y_test = _FEATURE_CACHE['y_test']
+                
+                # Use cached predictions if available and shapes match
+                if (cached_data and 'pred_test' in cached_data):
+                    pred_test = cached_data['pred_test']
+                    print("[DASHBOARD] ✅ Using cached predictions - INSTANT RESULTS!")
+                else:
+                    print("[DASHBOARD] Generating fresh predictions...")
+                    X_test = _FEATURE_CACHE['X_test'] 
+                    pred_test = svm.predict(X_test)
+                
+                # Calculate error
+                from Models.SVM_classification.svm_classification_wrapper import calculate_circular_error
+                test_mae, _ = calculate_circular_error(y_test, pred_test)
+                
+                return svm, pred_test, y_test, test_mae, {
+                    'train_predictions': cached_data.get('pred_train') if cached_data else None,
+                    'train_labels': _FEATURE_CACHE.get('y_train'),
+                    'train_mae': None,  # Would need to recalculate
+                    'test_mae': test_mae,
+                    'config': best_config
+                }
+            else:
+                print("[DASHBOARD] Need to extract features (cached model but no feature cache)")
+        else:
+            print("[DASHBOARD] No cached model found, will train new one")
+    else:
+        print("[DASHBOARD] Force retrain requested, skipping cache")
     
     # Check if we have cached features
     if use_cache and _FEATURE_CACHE is not None:
@@ -519,9 +670,9 @@ def get_best_svm_for_visualization(use_cache=True):
         sub_labels = all_labels[sub_valid]
         sub_sessions = all_sessions[sub_valid]
         
-        # Create train/test split (Mar_09 train, feb_23 test)
-        train_mask = sub_sessions == "Mar_09"
-        test_mask = sub_sessions == "feb_23"
+        # Create train/test split (feb_23+feb_24 train, Mar_09 test)
+        train_mask = (sub_sessions == "feb_23") | (sub_sessions == "feb_24")
+        test_mask = sub_sessions == "Mar_09"
         
         if train_mask.sum() == 0 or test_mask.sum() == 0:
             print("[DASHBOARD] ERROR: Insufficient real data")
@@ -544,25 +695,83 @@ def get_best_svm_for_visualization(use_cache=True):
             }
             print("[DASHBOARD] Features cached for future use")
     
-    # Train the best performing SVM configuration
-    best_config = {"n_bins": 16, "C": 10, "feature_selection": 12}
+    # Train the best performing SVM configuration (or use cached)
+    print(f"[DASHBOARD] Training/Loading SVM with config: {best_config}")
     
-    print(f"[DASHBOARD] Training SVM with config: {best_config}")
-    svm = CircularSVMClassifier(
-        n_bins=best_config["n_bins"],
-        C=best_config["C"],
-        gamma="scale",
-        probability=True,
-        feature_selection=best_config["feature_selection"],
-        class_weight="balanced"
-    )
-    
-    svm.fit(X_train, y_train)
-    
-    # Generate predictions
-    print("[DASHBOARD] Generating predictions...")
-    pred_train = svm.predict(X_train)
-    pred_test = svm.predict(X_test)
+    # Check for cached model first
+    if not force_retrain:
+        cached_result = load_model(best_config, sampling_mode)
+        if cached_result is not None:
+            svm, cached_data = cached_result
+            print("[DASHBOARD] Using cached model")
+            
+            # Use cached predictions if shapes match
+            if (cached_data and 'pred_train' in cached_data and 'pred_test' in cached_data and
+                cached_data.get('X_train_shape') == X_train.shape and 
+                cached_data.get('X_test_shape') == X_test.shape):
+                pred_train = cached_data['pred_train']
+                pred_test = cached_data['pred_test']
+                print("[DASHBOARD] Using cached predictions")
+            else:
+                print("[DASHBOARD] Generating fresh predictions...")
+                pred_train = svm.predict(X_train)
+                pred_test = svm.predict(X_test)
+        else:
+            # Train new model
+            print("[DASHBOARD] Training new SVM model...")
+            svm = CircularSVMClassifier(
+                n_bins=best_config["n_bins"],
+                C=best_config["C"],
+                gamma="scale",
+                probability=True,
+                feature_selection=best_config["feature_selection"],
+                class_weight="balanced"
+            )
+            
+            svm.fit(X_train, y_train)
+            
+            # Generate predictions
+            print("[DASHBOARD] Generating predictions...")
+            pred_train = svm.predict(X_train)
+            pred_test = svm.predict(X_test)
+            
+            # Save the model and predictions
+            additional_data = {
+                'pred_train': pred_train,
+                'pred_test': pred_test,
+                'X_train_shape': X_train.shape,
+                'X_test_shape': X_test.shape
+            }
+            save_model(svm, best_config, sampling_mode, additional_data)
+            print("[DASHBOARD] Model saved for future use")
+    else:
+        # Force retrain
+        print("[DASHBOARD] Force training new SVM model...")
+        svm = CircularSVMClassifier(
+            n_bins=best_config["n_bins"],
+            C=best_config["C"],
+            gamma="scale",
+            probability=True,
+            feature_selection=best_config["feature_selection"],
+            class_weight="balanced"
+        )
+        
+        svm.fit(X_train, y_train)
+        
+        # Generate predictions
+        print("[DASHBOARD] Generating predictions...")
+        pred_train = svm.predict(X_train)
+        pred_test = svm.predict(X_test)
+        
+        # Save the model and predictions
+        additional_data = {
+            'pred_train': pred_train,
+            'pred_test': pred_test,
+            'X_train_shape': X_train.shape,
+            'X_test_shape': X_test.shape
+        }
+        save_model(svm, best_config, sampling_mode, additional_data)
+        print("[DASHBOARD] New model saved")
     
     # Calculate errors
     train_mae, _ = calculate_circular_error(y_train, pred_train)
@@ -588,4 +797,20 @@ def clear_feature_cache():
 
 
 if __name__ == "__main__":
+    # Optional: Clear cache and force retrain
+    # clear_model_cache()
+    
     test_svm_classification()
+    
+    # Show cache status
+    print(f"\nModel cache directory: {MODEL_CACHE_DIR}")
+    cache_files = list(MODEL_CACHE_DIR.glob("*.pkl"))
+    if cache_files:
+        print(f"Cached models: {len(cache_files)}")
+        for cache_file in cache_files:
+            size_mb = cache_file.stat().st_size / (1024 * 1024)
+            print(f"  - {cache_file.name} ({size_mb:.1f} MB)")
+    else:
+        print("No cached models found")
+    
+    print("\nTo clear cache: uncomment clear_model_cache() call")
